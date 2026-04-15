@@ -20,7 +20,7 @@ export default function ToggleGroup({ label, options, active, onChange }: Toggle
   };
 
   return (
-    <div role="group" aria-label={label || 'Toggle options'} className="flex gap-2">
+    <div role="group" aria-label={label || 'Toggle options'} className="flex gap-1.5">
       {options.map((opt) => {
         const isActive = active.has(opt.value);
         const color = opt.color || 'var(--accent)';
@@ -31,14 +31,14 @@ export default function ToggleGroup({ label, options, active, onChange }: Toggle
             role="switch"
             aria-checked={isActive}
             onClick={() => toggle(opt.value)}
-            className="flex-1 py-1.5 px-2 rounded-lg border text-xs font-bold tracking-wide
-                       transition-all duration-150 cursor-pointer"
+            className="flex-1 py-1 px-2 rounded-lg text-[11px] font-medium
+                       transition-all duration-150 cursor-pointer border"
             style={isActive ? {
-              background: color + '20',
-              borderColor: color,
+              background: color + '15',
+              borderColor: color + '40',
               color: color,
             } : {
-              background: 'var(--bg-surface2)',
+              background: 'transparent',
               borderColor: 'var(--border)',
               color: 'var(--text-muted)',
             }}
