@@ -34,9 +34,20 @@ export default function MapContainer({ onMapReady, children, className = '' }: M
 
     map.on('load', () => {
       mapRef.current = map;
+      // Force resize after layout settles
+      requestAnimationFrame(() => {
+        map.resize();
+        requestAnimationFrame(() => map.resize());
+      });
       setReady(true);
       onMapReady(map);
     });
+
+    // Resize when container changes dimensions
+    const resizeObserver = new ResizeObserver(() => {
+      map.resize();
+    });
+    resizeObserver.observe(containerRef.current);
 
     // Theme change listener
     const observer = new MutationObserver(() => {
@@ -54,6 +65,7 @@ export default function MapContainer({ onMapReady, children, className = '' }: M
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
     return () => {
+      resizeObserver.disconnect();
       observer.disconnect();
       map.remove();
       mapRef.current = null;
@@ -61,8 +73,8 @@ export default function MapContainer({ onMapReady, children, className = '' }: M
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className={`relative flex-1 ${className}`}>
-      <div ref={containerRef} className="absolute inset-0" />
+    <div className={`relative flex-1 min-h-0 ${className}`}>
+      <div ref={containerRef} className="absolute inset-0 w-full h-full" />
       {ready && children}
     </div>
   );
