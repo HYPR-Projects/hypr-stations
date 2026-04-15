@@ -1,10 +1,13 @@
 import ThemeToggle from './ThemeToggle';
+import LoginButton from './LoginButton';
+import AuthProvider from './AuthProvider';
 
 interface HeaderProps {
   currentPage?: string;
+  showAuth?: boolean;
 }
 
-export default function Header({ currentPage }: HeaderProps) {
+function HeaderInner({ currentPage, showAuth = false }: HeaderProps) {
   return (
     <header className="flex items-center justify-between px-6 h-14 border-b
                         bg-[var(--bg-surface)] border-[var(--border)]
@@ -54,8 +57,20 @@ export default function Header({ currentPage }: HeaderProps) {
 
       {/* Actions */}
       <div className="flex items-center gap-2">
+        {showAuth && <LoginButton />}
         <ThemeToggle />
       </div>
     </header>
   );
+}
+
+export default function Header(props: HeaderProps) {
+  if (props.showAuth) {
+    return (
+      <AuthProvider>
+        <HeaderInner {...props} />
+      </AuthProvider>
+    );
+  }
+  return <HeaderInner {...props} />;
 }
