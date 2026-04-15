@@ -1,14 +1,8 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import Header from '../components/shared/Header';
-import RadioMap from '../components/radio/RadioMap';
+import RadioPage from '../components/radio/RadioPage';
 ---
 
 <BaseLayout title="Radio Map" description="Mapa interativo de estações FM e AM do Brasil" fullscreen>
-  <div class="h-screen flex flex-col">
-    <Header client:load currentPage="/radio" showAuth={true} />
-    <main class="flex-1 flex flex-col min-h-0 overflow-hidden">
-      <RadioMap client:load />
-    </main>
-  </div>
+  <RadioPage client:load />
 </BaseLayout>

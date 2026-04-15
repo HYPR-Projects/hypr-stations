@@ -1,6 +1,5 @@
 import ThemeToggle from './ThemeToggle';
 import LoginButton from './LoginButton';
-import AuthProvider from './AuthProvider';
 
 interface HeaderProps {
   currentPage?: string;
@@ -65,12 +64,5 @@ function HeaderInner({ currentPage, showAuth = false }: HeaderProps) {
 }
 
 export default function Header(props: HeaderProps) {
-  if (props.showAuth) {
-    return (
-      <AuthProvider>
-        <HeaderInner {...props} />
-      </AuthProvider>
-    );
-  }
   return <HeaderInner {...props} />;
 }
