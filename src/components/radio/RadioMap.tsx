@@ -70,7 +70,7 @@ export default function RadioMap() {
       filter: ['has', 'point_count'],
       layout: {
         'text-field': '{point_count_abbreviated}',
-        'text-font': ['Open Sans Bold'],
+        'text-font': ['Noto Sans Regular'],
         'text-size': 11,
       },
       paint: { 'text-color': RADIO_COLORS.fm },
