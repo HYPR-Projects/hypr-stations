@@ -7,6 +7,7 @@ interface MapCardProps {
   icon: string;
   href: string;
   status: MapStatus;
+  stats: { stations: string; types: string; source: string };
 }
 
 const STATUS_LABELS: Record<MapStatus, string> = {
@@ -29,63 +30,87 @@ function MapIcon({ icon }: { icon: string }) {
   }
 }
 
-export default function MapCard({ name, subtitle, description, icon, href, status }: MapCardProps) {
+export default function MapCard({ name, subtitle, description, icon, href, status, stats }: MapCardProps) {
   const isActive = status === 'active';
 
   const content = (
-    <div className={`group flex flex-col items-center text-center h-full
-                     px-8 py-10 rounded-xl border transition-all duration-300
+    <div className={`group flex flex-col h-full rounded-xl border transition-all duration-300
                      ${isActive
                        ? 'border-[var(--border)] bg-[var(--bg-surface)] hover:border-[var(--accent)] hover:shadow-[var(--shadow-card-hover)] cursor-pointer'
-                       : 'border-[var(--border)] bg-[var(--bg-surface)] opacity-40 cursor-default'
+                       : 'border-[var(--border)] bg-[var(--bg-surface)] opacity-45 cursor-default'
                      }`}>
 
-      {/* Icon */}
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-5
-                       transition-colors duration-300
-                       ${isActive
-                         ? 'bg-[var(--accent-muted)] text-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)]'
-                         : 'bg-[var(--bg-surface2)] text-[var(--text-muted)]'
-                       }`}>
-        <MapIcon icon={icon} />
+      {/* Main content area */}
+      <div className="flex flex-col flex-1 p-6 pb-5">
+        {/* Top: icon + badge */}
+        <div className="flex items-start justify-between mb-6">
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center
+                           transition-colors duration-300
+                           ${isActive
+                             ? 'bg-[var(--accent-muted)] text-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)]'
+                             : 'bg-[var(--bg-surface2)] text-[var(--text-muted)]'
+                           }`}>
+            <MapIcon icon={icon} />
+          </div>
+          {!isActive && (
+            <span className="text-micro font-semibold uppercase tracking-wider
+                             px-2.5 py-1 rounded-lg
+                             bg-[var(--accent-muted)] text-[var(--accent)]">
+              {STATUS_LABELS[status]}
+            </span>
+          )}
+        </div>
+
+        {/* Title */}
+        <h2 className="font-heading text-[15px] font-bold text-[var(--text-primary)] mb-1">
+          {name}
+        </h2>
+
+        {/* Subtitle */}
+        <p className="text-micro font-medium uppercase tracking-wider text-[var(--text-muted)] mb-4">
+          {subtitle}
+        </p>
+
+        {/* Description */}
+        <p className="text-xs text-[var(--text-secondary)] leading-relaxed flex-1">
+          {description}
+        </p>
       </div>
 
-      {/* Title */}
-      <h2 className="font-heading text-base font-bold text-[var(--text-primary)] mb-2">
-        {name}
-      </h2>
+      {/* Stats footer — separated from main content */}
+      <div className="px-6 pb-6 pt-0">
+        <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
+          <div className="flex gap-8">
+            {Object.entries(stats).map(([key, val]) => (
+              <div key={key} className="flex flex-col gap-0.5">
+                <span className={`text-xs font-bold leading-none ${isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}>
+                  {val}
+                </span>
+                <span className="text-micro uppercase tracking-wider text-[var(--text-muted)] leading-none">
+                  {key === 'stations' ? 'Estações' : key === 'types' ? 'Tipos' : 'Fonte'}
+                </span>
+              </div>
+            ))}
+          </div>
 
-      {/* Description */}
-      <p className="text-xs text-[var(--text-muted)] leading-relaxed max-w-[200px]">
-        {subtitle}
-      </p>
-
-      {/* Status badge for inactive */}
-      {!isActive && (
-        <span className="mt-5 text-micro font-semibold uppercase tracking-wider
-                         px-3 py-1 rounded-lg
-                         bg-[var(--accent-muted)] text-[var(--accent)]">
-          {STATUS_LABELS[status]}
-        </span>
-      )}
-
-      {/* Arrow for active */}
-      {isActive && (
-        <div className="mt-5 w-7 h-7 rounded-lg flex items-center justify-center
-                        bg-[var(--bg-surface2)] text-[var(--text-muted)]
-                        group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)]
-                        transition-all duration-300"
-             aria-hidden="true">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
-          </svg>
+          {isActive && (
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ml-3
+                            bg-[var(--bg-surface2)] text-[var(--text-muted)]
+                            group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)]
+                            transition-all duration-300"
+                 aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+              </svg>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 
   if (isActive) {
-    return <a href={href} className="no-underline block">{content}</a>;
+    return <a href={href} className="no-underline block h-full">{content}</a>;
   }
   return content;
 }
