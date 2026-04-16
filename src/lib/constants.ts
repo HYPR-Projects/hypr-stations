@@ -22,7 +22,7 @@ export const MAPS = {
     description: 'Mapa de Estações Rádio Base (ERBs) com cobertura 2G, 3G, 4G e 5G de todas as operadoras brasileiras.',
     icon: 'signal',
     href: '/cell',
-    status: 'coming-soon' as const,
+    status: 'active' as const,
     accent: 'blue',
     stats: { stations: '110K+', types: '2G–5G', source: 'Anatel/SMP' },
   },
