@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
-
-  useEffect(() => {
-    const stored = localStorage.getItem('hypr-theme') || 'dark';
-    setTheme(stored as 'dark' | 'light');
-  }, []);
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof document !== 'undefined') {
+      return document.documentElement.classList.contains('light') ? 'light' : 'dark';
+    }
+    return 'dark';
+  });
 
   const toggle = () => {
     const next = theme === 'dark' ? 'light' : 'dark';
@@ -18,29 +18,10 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      style={{
-        background: 'transparent',
-        border: '1px solid var(--border)',
-        width: 36,
-        height: 36,
-        borderRadius: 8,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--text-muted)',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.borderColor = 'var(--border-hover)';
-        e.currentTarget.style.color = 'var(--text-secondary)';
-        e.currentTarget.style.background = 'var(--hover-bg)';
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.borderColor = 'var(--border)';
-        e.currentTarget.style.color = 'var(--text-muted)';
-        e.currentTarget.style.background = 'transparent';
-      }}
+      className="w-9 h-9 rounded-lg flex items-center justify-center cursor-pointer
+                 bg-transparent border border-[var(--border)] text-[var(--text-muted)]
+                 transition-all duration-200
+                 hover:border-[var(--border-hover)] hover:text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]"
       aria-label={`Alternar para modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
       title={`Modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
     >

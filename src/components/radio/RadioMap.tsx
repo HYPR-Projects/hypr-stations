@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { Map as MLMap, GeoJSONSource } from 'maplibre-gl';
 import MapContainer from '../shared/MapContainer';
@@ -7,11 +7,11 @@ import CheckoutModal from '../shared/CheckoutModal';
 import { useAuth } from '../shared/AuthProvider';
 import RadioFilters from './RadioFilters';
 import StationList from './StationList';
-import { stations as allStations, type RadioStation } from './radioData';
+import { loadRadioData, type RadioStation, type RadioData } from './radioData';
 import { RADIO_COLORS } from '../../lib/constants';
 import { formatAudience, estimateRadioAudience, estimateRadioRadius, getRadioERP } from '../../lib/audience';
 
-function downloadCSV(cart: Set<number>) {
+function downloadCSV(cart: Set<number>, allStations: RadioStation[]) {
   const sel = [...cart].map(sid => allStations.find(s => s._sid === sid)).filter(Boolean) as RadioStation[];
   if (!sel.length) return;
   const h = ['tipo','municipio','uf','frequencia','classe','categoria','erp','entidade','carater','finalidade','lat','lng'];
@@ -23,13 +23,24 @@ function downloadCSV(cart: Set<number>) {
 
 export default function RadioMap() {
   const { isHypr, login } = useAuth();
-  const [filtered, setFiltered] = useState<RadioStation[]>(allStations);
+  const [data, setData] = useState<RadioData | null>(null);
+  const [filtered, setFiltered] = useState<RadioStation[]>([]);
   const [cart, setCart] = useState<Set<number>>(new Set());
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const mapRef = useRef<MLMap | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
+
+  // Load station data on mount
+  useEffect(() => {
+    loadRadioData().then(d => {
+      setData(d);
+      setFiltered(d.stations);
+    });
+  }, []);
+
+  const allStations = data?.stations ?? [];
 
   const buildGeoJSON = useCallback((data: RadioStation[]) => ({
     type: 'FeatureCollection' as const,
@@ -148,21 +159,33 @@ export default function RadioMap() {
     const a = sel.reduce((s, e) => s + estimateRadioAudience(e.erp, e.tipo, e.classe, e.uf), 0);
     const u = [...new Set(sel.map(e => e.uf))];
     return <span><strong className="text-[var(--text-primary)] font-semibold">{formatAudience(a)}</strong> devices · {u.length} UFs</span>;
-  }, [cart]);
+  }, [cart, allStations]);
 
   const ckStations = useMemo(() => [...cart].map(sid => allStations.find(s => s._sid === sid)).filter(Boolean).map(s => ({
     tipo: s!.tipo, frequencia: s!.frequencia, municipio: s!.municipio, uf: s!.uf,
     audience: estimateRadioAudience(s!.erp, s!.tipo, s!.classe, s!.uf),
-  })), [cart]);
+  })), [cart, allStations]);
 
   const fmN = useMemo(() => filtered.filter(s => s.tipo === 'FM').length, [filtered]);
+
+  // Loading state while radio-stations.json is being fetched
+  if (!data) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-[var(--border)] border-t-[var(--accent)] rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-[13px] text-[var(--text-muted)]">Carregando estações…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (<>
     <div className="flex flex-1 h-full min-h-0 overflow-hidden">
       {/* Sidebar — 200px like original */}
       <aside aria-label="Filtros e estações"
         className="hidden md:flex w-[290px] flex-col bg-[var(--bg-surface)] border-r border-[var(--border)] shrink-0 overflow-hidden">
-        <RadioFilters stations={allStations} onFilter={onFilter} />
+        <RadioFilters stations={allStations} onFilter={onFilter} allUFs={data?.allUFs ?? []} allClasses={data?.allClasses ?? []} allFinalidades={data?.allFinalidades ?? []} />
         <StationList stations={filtered} cart={cart} activeIdx={activeIdx} onFocus={focusStation}
           onToggleCart={toggleCart} onClearCart={clearCart} onSelectAll={selectAll} totalCount={filtered.length} />
       </aside>
@@ -199,14 +222,14 @@ export default function RadioMap() {
           <button onClick={() => setDrawerOpen(false)} className="w-7 h-7 rounded-lg bg-[var(--bg-surface2)] text-[var(--text-muted)] hover:bg-[var(--bg-surface3)] flex items-center justify-center cursor-pointer text-[13px] transition-colors">×</button>
         </div>
         <div className="overflow-y-auto flex-1">
-          <RadioFilters stations={allStations} onFilter={onFilter} />
+          <RadioFilters stations={allStations} onFilter={onFilter} allUFs={data?.allUFs ?? []} allClasses={data?.allClasses ?? []} allFinalidades={data?.allFinalidades ?? []} />
           <div className="p-5"><button onClick={() => setDrawerOpen(false)}
             className="w-full py-3 rounded-[10px] bg-[var(--accent)] text-[var(--on-accent)] font-heading font-semibold text-[13px] cursor-pointer hover:opacity-90 transition-opacity">Aplicar</button></div>
         </div>
       </div>
     </>)}
 
-    <SelectionBar count={cart.size} summary={summary} onCheckout={isHypr ? () => setCheckoutOpen(true) : login} onDownload={isHypr ? () => downloadCSV(cart) : login} canDownload={isHypr} />
+    <SelectionBar count={cart.size} summary={summary} onCheckout={isHypr ? () => setCheckoutOpen(true) : login} onDownload={isHypr ? () => downloadCSV(cart, allStations) : login} canDownload={isHypr} />
     <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} stations={ckStations} />
   </>);
 }

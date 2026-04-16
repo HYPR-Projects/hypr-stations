@@ -24,6 +24,7 @@ export default function CheckoutModal({ open, onClose, stations }: CheckoutModal
   const [step, setStep] = useState<Step>('form');
   const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', budget: '' });
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const kpis = useMemo(() => {
     const totalAud = stations.reduce((s, e) => s + e.audience, 0);
@@ -38,7 +39,7 @@ export default function CheckoutModal({ open, onClose, stations }: CheckoutModal
     return v;
   };
 
-  const submit = () => {
+  const submit = async () => {
     const errs: string[] = [];
     if (!form.name.trim()) errs.push('Nome');
     if (!form.company.trim()) errs.push('Empresa');
@@ -48,10 +49,11 @@ export default function CheckoutModal({ open, onClose, stations }: CheckoutModal
     if (!form.budget) errs.push('Orçamento');
     if (errs.length) { setError('Preencha: ' + errs.join(', ')); return; }
     setError('');
+    setSubmitting(true);
 
-    // Send to Google Sheets
+    // Send to Google Sheets (fire-and-forget via no-cors)
     try {
-      fetch(SHEETS_WEBHOOK, {
+      await fetch(SHEETS_WEBHOOK, {
         method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           source: 'HYPR Station — Radio Map',
@@ -64,8 +66,11 @@ export default function CheckoutModal({ open, onClose, stations }: CheckoutModal
           timestamp: new Date().toISOString(),
         }),
       });
-    } catch {}
+    } catch (err) {
+      console.warn('[Checkout] Failed to send lead:', err);
+    }
 
+    setSubmitting(false);
     setStep('execs');
   };
 
@@ -151,10 +156,16 @@ export default function CheckoutModal({ open, onClose, stations }: CheckoutModal
               </select>
             </div>
             {error && <p className="text-xs text-[var(--color-red-400)] text-center mb-3">{error}</p>}
-            <button onClick={submit}
+            <button onClick={submit} disabled={submitting}
                     className="w-full py-3 rounded-[10px] bg-[var(--accent)] text-[var(--on-accent)]
-                               font-heading font-semibold text-[13px] cursor-pointer hover:opacity-90 transition-opacity">
-              Continuar
+                               font-heading font-semibold text-[13px] cursor-pointer hover:opacity-90 transition-opacity
+                               disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              {submitting ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-[var(--on-accent)] border-t-transparent rounded-full animate-spin" />
+                  Enviando…
+                </>
+              ) : 'Continuar'}
             </button>
           </>
         ) : (

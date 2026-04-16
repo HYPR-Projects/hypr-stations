@@ -97,5 +97,5 @@ export const EXECS = [
   { name: 'Pablo', phone: '5511966090970', img: 'exec-pablo.webp' },
 ] as const;
 
-// Google Sheets webhook (checkout leads)
-export const SHEETS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbzs18nfMV7gRNONPgzoQ7vTF_P4kKXWNM5V8BJijUx6Ao1Qx48xvONYUXhKTs944yXR/exec';
+// Google Sheets webhook (checkout leads) — prefer env var
+export const SHEETS_WEBHOOK = import.meta.env.PUBLIC_SHEETS_WEBHOOK || 'https://script.google.com/macros/s/AKfycbzs18nfMV7gRNONPgzoQ7vTF_P4kKXWNM5V8BJijUx6Ao1Qx48xvONYUXhKTs944yXR/exec';

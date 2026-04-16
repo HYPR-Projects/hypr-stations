@@ -1,4 +1,5 @@
-import { useCallback, memo } from 'react';
+import { memo, useEffect } from 'react';
+import { List, useListRef } from 'react-window';
 import { OPERADORA_COLORS, TECH_COLORS } from '../../lib/constants';
 import type { ERB } from './cellData';
 
@@ -8,7 +9,7 @@ interface Props {
   onClearCart: () => void; onSelectAll: () => void; totalCount: number;
 }
 
-interface RowProps {
+interface RowData {
   erbs: ERB[];
   cart: Set<number>;
   activeIdx: number | null;
@@ -16,14 +17,18 @@ interface RowProps {
   onToggleCart: (id: number) => void;
 }
 
-const StationRow = memo(function StationRow({ index, style, erbs, cart, activeIdx, onFocus, onToggleCart }: { index: number; style: React.CSSProperties } & RowProps) {
+const ROW_HEIGHT = 68;
+
+const StationRow = memo(function StationRow({
+  index, style, ariaAttributes, erbs, cart, activeIdx, onFocus, onToggleCart,
+}: { index: number; style: React.CSSProperties; ariaAttributes: Record<string, unknown> } & RowData) {
   const e = erbs[index];
   if (!e) return null;
   const sel = cart.has(e.id);
   const act = activeIdx === index;
   return (
-    <div style={style}>
-      <div role="listitem" tabIndex={0}
+    <div style={style} {...ariaAttributes}>
+      <div tabIndex={0}
         onClick={() => onFocus(index)}
         onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onFocus(index); } }}
         className={`px-5 py-3 cursor-pointer border-l-2 transition-all duration-150 h-full
@@ -59,8 +64,13 @@ const StationRow = memo(function StationRow({ index, style, erbs, cart, activeId
 });
 
 export default function CellStationList({ erbs, cart, activeIdx, onFocus, onToggleCart, onClearCart, onSelectAll, totalCount }: Props) {
-  // Fallback: render plain list if react-window v2 API doesn't match
-  const renderPlain = erbs.length <= 500;
+  const listRef = useListRef();
+
+  useEffect(() => {
+    if (activeIdx != null && listRef.current) {
+      try { listRef.current.scrollToRow({ index: activeIdx, align: 'smart' }); } catch {}
+    }
+  }, [activeIdx, listRef]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -76,14 +86,15 @@ export default function CellStationList({ erbs, cart, activeIdx, onFocus, onTogg
           Limpar</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto" role="list" aria-label="Estações">
-        {erbs.slice(0, renderPlain ? 500 : 300).map((e, i) => (
-          <StationRow key={e.id} index={i} style={{}} erbs={erbs} cart={cart}
-            activeIdx={activeIdx} onFocus={onFocus} onToggleCart={onToggleCart} />
-        ))}
-        {erbs.length > (renderPlain ? 500 : 300) && (
-          <div className="px-5 py-5 text-[12px] text-[var(--text-muted)] text-center">
-            Mostrando {renderPlain ? 500 : 300} de {erbs.length.toLocaleString('pt-BR')} — refine com os filtros</div>)}
+      <div className="flex-1 min-h-0">
+        <List
+          listRef={listRef}
+          rowCount={erbs.length}
+          rowHeight={ROW_HEIGHT}
+          rowComponent={StationRow}
+          rowProps={{ erbs, cart, activeIdx, onFocus, onToggleCart } satisfies RowData}
+          style={{ height: '100%' }}
+        />
       </div>
     </div>
   );

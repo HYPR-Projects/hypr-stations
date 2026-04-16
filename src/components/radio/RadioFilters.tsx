@@ -2,9 +2,15 @@ import { useState, useCallback, useId } from 'react';
 import MultiSelect from '../shared/MultiSelect';
 import ToggleGroup from '../shared/ToggleGroup';
 import { RADIO_COLORS } from '../../lib/constants';
-import { ALL_UFS, ALL_CLASSES, ALL_FINALIDADES, type RadioStation } from './radioData';
+import type { RadioStation } from './radioData';
 
-interface Props { stations: RadioStation[]; onFilter: (f: RadioStation[]) => void; }
+interface Props {
+  stations: RadioStation[];
+  onFilter: (f: RadioStation[]) => void;
+  allUFs: string[];
+  allClasses: string[];
+  allFinalidades: string[];
+}
 
 export interface RadioFilterState {
   types: Set<string>; ufs: Set<string>; classes: Set<string>; finalidades: Set<string>;
@@ -16,7 +22,7 @@ const TYPE_OPTS = [
   { value: 'OM', label: 'AM/OM', color: RADIO_COLORS.am },
 ];
 
-export default function RadioFilters({ stations, onFilter }: Props) {
+export default function RadioFilters({ stations, onFilter, allUFs, allClasses, allFinalidades }: Props) {
   const uid = useId();
   const [f, setF] = useState<RadioFilterState>({
     types: new Set(['FM', 'OM']), ufs: new Set(), classes: new Set(), finalidades: new Set(),
@@ -59,7 +65,7 @@ export default function RadioFilters({ stations, onFilter }: Props) {
 
       {/* UF */}
       <section className="px-4 py-4 border-b border-[var(--border)] min-w-0">
-        <MultiSelect label="Estado (UF)" placeholder="Todos os estados" options={ALL_UFS}
+        <MultiSelect label="Estado (UF)" placeholder="Todos os estados" options={allUFs}
           selected={f.ufs} onChange={ufs => upd({ ufs })} />
       </section>
 
@@ -91,10 +97,10 @@ export default function RadioFilters({ stations, onFilter }: Props) {
                 className="block w-full max-w-full h-8 px-3 rounded-md text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors duration-200" />
             </div>
 
-            <MultiSelect label="Classe" placeholder="Todas as classes" options={ALL_CLASSES}
+            <MultiSelect label="Classe" placeholder="Todas as classes" options={allClasses}
               selected={f.classes} onChange={classes => upd({ classes })} />
 
-            <MultiSelect label="Finalidade" placeholder="Todas" options={ALL_FINALIDADES}
+            <MultiSelect label="Finalidade" placeholder="Todas" options={allFinalidades}
               selected={f.finalidades} onChange={finalidades => upd({ finalidades })} searchable={false} />
 
             <div className="min-w-0">

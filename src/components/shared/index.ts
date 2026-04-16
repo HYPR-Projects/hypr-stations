@@ -6,3 +6,4 @@ export { default as MultiSelect } from './MultiSelect';
 export { default as ToggleGroup } from './ToggleGroup';
 export { default as SelectionBar } from './SelectionBar';
 export { default as MapContainer } from './MapContainer';
+export { default as ErrorBoundary } from './ErrorBoundary';
