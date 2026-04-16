@@ -24,10 +24,6 @@ let _cache: ERB[] | null = null;
 
 export async function fetchERBs(): Promise<ERB[]> {
   if (_cache) return _cache;
-  if (!supabase) {
-    console.warn('Supabase not configured');
-    return [];
-  }
 
   const cols = 'id,prestadora_norm,num_estacao,uf,municipio,cod_municipio,logradouro,lat,lng,coord_source,tecnologias,tech_principal,freq_mhz,faixas,azimutes';
 
