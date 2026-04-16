@@ -122,18 +122,18 @@ export default function CellFilters({ erbs, onFilter, filterOptions }: Props) {
             <MultiSelect label="Estado (UF)" placeholder="Todos os estados" options={filterOptions.ufs}
               selected={f.ufs} onChange={ufs => upd({ ufs })} />
 
-            <div className="min-w-0">
-              <label htmlFor={`cc-${uid}`} className="block text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-1.5">Cidade</label>
+            <div className="flex flex-col gap-1.5 min-w-0">
+              <label htmlFor={`cc-${uid}`} className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)]">Cidade</label>
               <input id={`cc-${uid}`} value={f.cidade} onChange={e => upd({ cidade: e.target.value })}
                 placeholder="Buscar município..."
-                className="block w-full h-8 px-3 rounded-md text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors duration-200 bg-[var(--input-bg)] border border-[var(--input-border)]" />
+                className="w-full h-8 px-3 rounded-md text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors duration-200 bg-[var(--input-bg)] border border-[var(--input-border)]" />
             </div>
 
             <MultiSelect label="Faixa (MHz)" placeholder="Todas" options={filterOptions.faixas}
               selected={f.faixas} onChange={faixas => upd({ faixas })} searchable={false} />
 
             <button onClick={reset} type="button"
-              className="block w-full h-8 rounded-md text-[11px] font-medium text-[var(--accent)]
+              className="w-full h-8 rounded-md text-[11px] font-medium text-[var(--accent)]
                          hover:border-[var(--accent)] cursor-pointer transition-colors duration-200 bg-transparent border border-[var(--input-border-subtle)]">
               Limpar filtros
             </button>
