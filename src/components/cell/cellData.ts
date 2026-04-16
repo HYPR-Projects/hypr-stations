@@ -7,73 +7,90 @@ export interface ERB {
   num_estacao: string;
   uf: string;
   municipio: string;
-  cod_municipio: number | null;
-  logradouro: string | null;
   lat: number;
   lng: number;
-  coord_source: string;
   tecnologias: string[];
   tech_principal: string;
+  // Optional — only available from detail fetch
+  cod_municipio?: number | null;
+  logradouro?: string | null;
+  coord_source?: string;
   freq_mhz?: number[];
   faixas?: string[];
   azimutes?: number[];
 }
 
-// ─── Fetch all ERBs (parallel pagination) ────────
+// ─── Compact JSON format ─────────────────────────
+// Cols: [id, op, num, uf, mun, lat, lng, techs, tech]
+interface CompactData {
+  meta: { count: number; generated: string; source: string; cols: string[] };
+  data: [number, string, string, string, string, number, number, string[], string][];
+}
+
+// ─── Fetch all ERBs from static JSON ─────────────
 let _cache: ERB[] | null = null;
 
 export async function fetchERBs(onProgress?: (loaded: number) => void): Promise<ERB[]> {
   if (_cache) return _cache;
 
-  // Light columns for map — skip logradouro, azimutes, emissoes for speed
-  const cols = 'id,prestadora_norm,num_estacao,uf,municipio,cod_municipio,lat,lng,coord_source,tecnologias,tech_principal';
-  const pageSize = 1000; // PostgREST max_rows default
+  try {
+    const resp = await fetch('/assets/erb.json');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-  // First, get total count
-  const { count } = await supabase
-    .from('erb')
-    .select('id', { count: 'exact', head: true });
+    const raw: CompactData = await resp.json();
+    onProgress?.(raw.meta.count);
 
-  const total = count || 0;
-  if (total === 0) return [];
-
-  const pages = Math.ceil(total / pageSize);
-  const chunks: ERB[][] = new Array(pages).fill(null);
-  let loaded = 0;
-
-  // Fetch pages in parallel (6 concurrent — fast but safe)
-  const concurrency = 6;
-  for (let start = 0; start < pages; start += concurrency) {
-    const batch = [];
-    for (let i = start; i < Math.min(start + concurrency, pages); i++) {
-      const pageIdx = i;
-      const from = i * pageSize;
-      batch.push(
-        supabase
-          .from('erb')
-          .select(cols)
-          .range(from, from + pageSize - 1)
-          .order('id')
-          .then(({ data, error }) => {
-            if (error) {
-              console.error('ERB fetch error:', error.message);
-              return;
-            }
-            if (data) {
-              chunks[pageIdx] = data as ERB[];
-              loaded += data.length;
-              onProgress?.(loaded);
-            }
-          })
-      );
+    // Expand compact arrays to objects
+    const erbs: ERB[] = new Array(raw.data.length);
+    for (let i = 0; i < raw.data.length; i++) {
+      const r = raw.data[i];
+      erbs[i] = {
+        id: r[0],
+        prestadora_norm: r[1],
+        num_estacao: r[2],
+        uf: r[3],
+        municipio: r[4],
+        lat: r[5],
+        lng: r[6],
+        tecnologias: r[7],
+        tech_principal: r[8],
+      };
     }
-    await Promise.all(batch);
+
+    _cache = erbs;
+    console.log(`[CellData] Loaded ${erbs.length} ERBs from static JSON (${raw.meta.source})`);
+    return erbs;
+  } catch (err) {
+    console.error('[CellData] Static JSON failed, falling back to Supabase:', err);
+    return fetchFromSupabase(onProgress);
+  }
+}
+
+// ─── Supabase fallback (in case JSON is stale) ───
+async function fetchFromSupabase(onProgress?: (loaded: number) => void): Promise<ERB[]> {
+  const cols = 'id,prestadora_norm,num_estacao,uf,municipio,lat,lng,tecnologias,tech_principal';
+  const pageSize = 1000;
+  const all: ERB[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('erb')
+      .select(cols)
+      .range(from, from + pageSize - 1)
+      .order('id');
+
+    if (error) { console.error('ERB fetch error:', error.message); break; }
+    if (!data || data.length === 0) break;
+    all.push(...(data as ERB[]));
+    onProgress?.(all.length);
+    if (data.length < pageSize) break;
+    from += pageSize;
   }
 
-  const result = chunks.filter(Boolean).flat();
-  _cache = result;
-  console.log(`[CellData] Loaded ${result.length} ERBs`);
-  return result;
+  _cache = all;
+  console.log(`[CellData] Loaded ${all.length} ERBs from Supabase (fallback)`);
+  return all;
 }
 
 // ─── Fetch single ERB detail (on popup) ──────────
@@ -92,18 +109,16 @@ export async function fetchERBDetail(id: number): Promise<ERB | null> {
 export function getFilterOptions(erbs: ERB[]) {
   const ufs = new Set<string>();
   const operadoras = new Set<string>();
-  const faixas = new Set<string>();
 
   for (const e of erbs) {
     ufs.add(e.uf);
     operadoras.add(e.prestadora_norm);
-    if (e.faixas) for (const f of e.faixas) faixas.add(f);
   }
 
   return {
     ufs: [...ufs].sort(),
     operadoras: [...operadoras].sort(),
-    faixas: [...faixas].sort((a, b) => Number(a) - Number(b)),
+    faixas: [] as string[], // Not available in compact data
   };
 }
 
