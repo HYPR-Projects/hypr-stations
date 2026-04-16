@@ -19,10 +19,31 @@ export interface ERB {
   azimutes?: number[];
 }
 
-// Cols: [id, op, num, uf, mun, lat, lng, techs, tech]
-interface CompactData {
-  meta: { count: number; generated: string; source: string; cols: string[] };
-  data: [number, string, string, string, string, number, number, string[], string][];
+// v4 columnar format — lookup tables + bitmask techs + integer coords
+interface ColumnarData {
+  v: number;
+  meta: { count: number; generated: string; source: string };
+  L: { op: string[]; uf: string[]; mun: string[] };
+  c: {
+    o: number[];  // op index
+    n: number[];  // num_estacao (as int)
+    u: number[];  // uf index
+    m: number[];  // mun index
+    a: number[];  // lat * 10000
+    g: number[];  // lng * 10000
+    t: number[];  // tech bitmask (5G=8 4G=4 3G=2 2G=1)
+    p: number[];  // principal tech bitmask
+  };
+}
+
+const TECH_FROM_BIT: Record<number, string> = { 8: '5G', 4: '4G', 2: '3G', 1: '2G' };
+
+function bitmaskToTechs(mask: number): string[] {
+  const out: string[] = [];
+  for (const bit of [8, 4, 2, 1]) {
+    if (mask & bit) out.push(TECH_FROM_BIT[bit]);
+  }
+  return out;
 }
 
 let _cache: ERB[] | null = null;
@@ -34,28 +55,31 @@ export async function fetchERBs(onProgress?: (loaded: number) => void): Promise<
     const resp = await fetch('/assets/erb.json');
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
-    const raw: CompactData = await resp.json();
+    const raw: ColumnarData = await resp.json();
     onProgress?.(raw.meta.count);
 
-    // Expand compact arrays to objects
-    const erbs: ERB[] = new Array(raw.data.length);
-    for (let i = 0; i < raw.data.length; i++) {
-      const r = raw.data[i];
+    const { op, uf, mun } = raw.L;
+    const { o, n, u, m, a, g, t, p } = raw.c;
+    const len = raw.meta.count;
+
+    // Expand columnar data to objects
+    const erbs: ERB[] = new Array(len);
+    for (let i = 0; i < len; i++) {
       erbs[i] = {
-        id: r[0],
-        prestadora_norm: r[1],
-        num_estacao: r[2],
-        uf: r[3],
-        municipio: r[4],
-        lat: r[5],
-        lng: r[6],
-        tecnologias: r[7],
-        tech_principal: r[8],
+        id: i + 1,
+        prestadora_norm: op[o[i]],
+        num_estacao: String(n[i]),
+        uf: uf[u[i]],
+        municipio: mun[m[i]],
+        lat: a[i] / 10000,
+        lng: g[i] / 10000,
+        tecnologias: bitmaskToTechs(t[i]),
+        tech_principal: TECH_FROM_BIT[p[i]] || '4G',
       };
     }
 
     _cache = erbs;
-    console.log(`[CellData] Loaded ${erbs.length} ERBs from static JSON (${raw.meta.source})`);
+    console.log(`[CellData] Loaded ${erbs.length} ERBs from static JSON v4 (${raw.meta.source})`);
     return erbs;
   } catch (err) {
     console.error('[CellData] Static JSON failed, falling back to Supabase:', err);

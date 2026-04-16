@@ -51,13 +51,27 @@ const DOM_FILL = 'erb-dominance-fill';
 const DOM_LINE = 'erb-dominance-line';
 const DOM_LABEL = 'erb-dominance-label';
 
+import { cellToBoundary } from 'h3-js';
+
 interface HexRaw {
   h: string;           // h3 index
-  c: number[][];       // coordinates ring
+  c: number[][];       // coordinates ring [lng, lat]
   d: string;           // dominant operator
   p: number;           // dominant pct (0-100)
   t: number;           // total ERBs
   o: Record<string, number>; // per-operator counts
+}
+
+// v2 compact format: [h3, dom_op_idx, pct, total, [op_idx, count, ...]]
+type CompactHex = [string, number, number, number, number[]];
+
+interface CompactDominanceData {
+  v: number;
+  meta: { generated: string; source: string; totalErbs: number; resolutions: number[] };
+  ops: string[];
+  all: Record<string, CompactHex[]>;
+  '5G': Record<string, CompactHex[]>;
+  '4G': Record<string, CompactHex[]>;
 }
 
 interface DominanceData {
@@ -67,15 +81,51 @@ interface DominanceData {
   '4G': Record<string, HexRaw[]>;
 }
 
+// h3 boundary cache — avoids recomputing for the same hex across tech filters
+const _boundaryCache = new Map<string, number[][]>();
+
+function h3ToRing(h3Index: string): number[][] {
+  let ring = _boundaryCache.get(h3Index);
+  if (ring) return ring;
+  // cellToBoundary returns [lat, lng][] — we need [lng, lat][] for GeoJSON
+  const boundary = cellToBoundary(h3Index);
+  ring = boundary.map(([lat, lng]) => [lng, lat]);
+  ring.push(ring[0]); // close the ring
+  _boundaryCache.set(h3Index, ring);
+  return ring;
+}
+
+function expandHexes(compact: CompactHex[], ops: string[]): HexRaw[] {
+  return compact.map(([h, dIdx, p, t, oFlat]) => {
+    const o: Record<string, number> = {};
+    for (let i = 0; i < oFlat.length; i += 2) {
+      o[ops[oFlat[i]]] = oFlat[i + 1];
+    }
+    return { h, c: h3ToRing(h), d: ops[dIdx], p, t, o };
+  });
+}
+
 let _domData: DominanceData | null = null;
 let _domLoading: Promise<DominanceData | null> | null = null;
 
 export async function loadDominanceData(): Promise<DominanceData | null> {
   if (_domData) return _domData;
   if (_domLoading) return _domLoading;
-  _domLoading = fetch('/assets/dominance.json').then(r => r.json()).then(d => {
-    _domData = d;
-    return d;
+  _domLoading = fetch('/assets/dominance.json').then(r => r.json()).then((raw: CompactDominanceData) => {
+    const ops = raw.ops;
+    const expanded: DominanceData = {
+      meta: raw.meta,
+      all: {}, '5G': {}, '4G': {},
+    };
+    for (const tk of ['all', '5G', '4G'] as const) {
+      if (!raw[tk]) continue;
+      for (const rk of Object.keys(raw[tk])) {
+        expanded[tk][rk] = expandHexes(raw[tk][rk], ops);
+      }
+    }
+    _domData = expanded;
+    console.log(`[Dominance] Loaded v2 compact data, ${_boundaryCache.size} hex boundaries computed`);
+    return expanded;
   }).catch(err => {
     console.error('Failed to load dominance data:', err);
     return null;

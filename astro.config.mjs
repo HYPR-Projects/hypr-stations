@@ -16,7 +16,7 @@ export default defineConfig({
             if (id.includes('maplibre-gl') || id.includes('pbf') || id.includes('earcut') ||
                 id.includes('geojson-vt') || id.includes('kdbush') || id.includes('gl-matrix') ||
                 id.includes('tiny-sdf') || id.includes('murmurhash') || id.includes('potpack') ||
-                id.includes('@mapbox')) {
+                id.includes('@mapbox') || id.includes('h3-js')) {
               return 'maplibre';
             }
           },
