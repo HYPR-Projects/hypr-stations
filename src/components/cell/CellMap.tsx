@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
-import type { Map as MLMap } from 'maplibre-gl';
-import Supercluster from 'supercluster';
+import type { Map as MLMap, GeoJSONSource } from 'maplibre-gl';
 import MapContainer from '../shared/MapContainer';
 import SelectionBar from '../shared/SelectionBar';
 import CheckoutModal from '../shared/CheckoutModal';
@@ -15,70 +14,6 @@ import { OPERADORA_COLORS, TECH_COLORS } from '../../lib/constants';
 import { formatAudience, estimateCellAudience, estimateCellRadius } from '../../lib/audience';
 import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom } from './analysisLayers';
 import { updateCoverageCircles, removeCoverageCircles } from './coverageLayer';
-
-// ─── Supercluster setup ──────────────────────────
-
-type ErbFeature = GeoJSON.Feature<GeoJSON.Point, {
-  idx: number;
-  id: number;
-  op: string;
-  tech: string;
-}>;
-
-function buildIndex(erbs: ERB[]): Supercluster<ErbFeature['properties']> {
-  const index = new Supercluster<ErbFeature['properties']>({
-    radius: 60,
-    maxZoom: 14,
-    map: (props) => ({
-      op: props.op,
-      opCounts: { [props.op]: 1 },
-      techCounts: { [props.tech]: 1 },
-    }),
-    reduce: (acc: any, props: any) => {
-      // Aggregate operator counts
-      if (!acc.opCounts) acc.opCounts = {};
-      for (const [k, v] of Object.entries(props.opCounts || {})) {
-        acc.opCounts[k] = (acc.opCounts[k] || 0) + (v as number);
-      }
-      // Aggregate tech counts
-      if (!acc.techCounts) acc.techCounts = {};
-      for (const [k, v] of Object.entries(props.techCounts || {})) {
-        acc.techCounts[k] = (acc.techCounts[k] || 0) + (v as number);
-      }
-    },
-  });
-
-  const features: ErbFeature[] = erbs
-    .filter(e => e.lat && e.lng)
-    .map((e, i) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [e.lng, e.lat] },
-      properties: { idx: i, id: e.id, op: e.prestadora_norm, tech: e.tech_principal },
-    }));
-
-  index.load(features);
-  return index;
-}
-
-// ─── Dominant color from cluster ─────────────────
-
-function clusterColor(props: any): string {
-  const counts = props.opCounts || {};
-  let maxOp = '';
-  let maxN = 0;
-  for (const [op, n] of Object.entries(counts)) {
-    if ((n as number) > maxN) { maxOp = op; maxN = n as number; }
-  }
-  return OPERADORA_COLORS[maxOp] || OPERADORA_COLORS['Outras'];
-}
-
-function clusterTechColor(props: any): string {
-  const counts = props.techCounts || {};
-  for (const t of ['5G', '4G', '3G', '2G']) {
-    if (counts[t]) return TECH_COLORS[t];
-  }
-  return TECH_COLORS['2G'];
-}
 
 // ─── CSV export ──────────────────────────────────
 
@@ -116,8 +51,6 @@ export default function CellMap() {
   const [showCoverage, setShowCoverage] = useState(false);
   const mapRef = useRef<MLMap | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
-  const indexRef = useRef<Supercluster<ErbFeature['properties']> | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
   const viewModeRef = useRef<string>('pins');
   const coverageRef = useRef(false);
 
@@ -132,29 +65,162 @@ export default function CellMap() {
 
   const filterOptions = useMemo(() => getFilterOptions(allErbs), [allErbs]);
 
+  // ─── GeoJSON Layer rendering (native MapLibre, no DOM markers) ───
+
+  const clearLayers = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    ['cell-clusters', 'cell-cluster-count', 'cell-points'].forEach(id => {
+      if (map.getLayer(id)) map.removeLayer(id);
+    });
+    if (map.getSource('cell-erb')) map.removeSource('cell-erb');
+  }, []);
+
+  const renderLayers = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !filtered.length) return;
+
+    clearLayers();
+
+    const geojson: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: filtered.filter(e => e.lat && e.lng).map((e, i) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [e.lng, e.lat] },
+        properties: { idx: i, id: e.id, op: e.prestadora_norm, tech: e.tech_principal },
+      })),
+    };
+
+    map.addSource('cell-erb', {
+      type: 'geojson',
+      data: geojson,
+      cluster: true,
+      clusterMaxZoom: 13,
+      clusterRadius: 55,
+      clusterProperties: {
+        // Track dominant operator in cluster
+        vivo: ['+', ['case', ['==', ['get', 'op'], 'Vivo'], 1, 0]],
+        claro: ['+', ['case', ['==', ['get', 'op'], 'Claro'], 1, 0]],
+        tim: ['+', ['case', ['==', ['get', 'op'], 'TIM'], 1, 0]],
+      },
+    });
+
+    // Helper: build operator color expression for MapLibre
+    const opColorExpr = (prop: string): any => [
+      'match', ['get', prop],
+      'Vivo', OPERADORA_COLORS.Vivo,
+      'Claro', OPERADORA_COLORS.Claro,
+      'TIM', OPERADORA_COLORS.TIM,
+      'Algar', OPERADORA_COLORS.Algar,
+      'Brisanet', OPERADORA_COLORS.Brisanet,
+      'Unifique', OPERADORA_COLORS.Unifique,
+      'Sercomtel', OPERADORA_COLORS.Sercomtel,
+      OPERADORA_COLORS.Outras,
+    ];
+
+    // Cluster dominant color expression
+    const clusterColorExpr: any = [
+      'case',
+      ['>=', ['get', 'vivo'], ['max', ['get', 'claro'], ['get', 'tim']]], OPERADORA_COLORS.Vivo,
+      ['>=', ['get', 'claro'], ['max', ['get', 'vivo'], ['get', 'tim']]], OPERADORA_COLORS.Claro,
+      OPERADORA_COLORS.TIM,
+    ];
+
+    // Cluster circles — color by dominant operator
+    map.addLayer({
+      id: 'cell-clusters',
+      type: 'circle',
+      source: 'cell-erb',
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': clusterColorExpr,
+        'circle-opacity': 0.25,
+        'circle-radius': ['step', ['get', 'point_count'], 18, 50, 24, 200, 32, 1000, 40],
+        'circle-stroke-width': 1.5,
+        'circle-stroke-color': clusterColorExpr,
+        'circle-stroke-opacity': 0.6,
+      },
+    });
+
+    // Cluster count labels
+    map.addLayer({
+      id: 'cell-cluster-count',
+      type: 'symbol',
+      source: 'cell-erb',
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': '{point_count_abbreviated}',
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 12,
+      },
+      paint: {
+        'text-color': clusterColorExpr,
+      },
+    });
+
+    // Individual points — color by operator
+    map.addLayer({
+      id: 'cell-points',
+      type: 'circle',
+      source: 'cell-erb',
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-radius': 5,
+        'circle-color': opColorExpr('op'),
+        'circle-opacity': 0.85,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': opColorExpr('op'),
+        'circle-stroke-opacity': 0.5,
+      },
+    });
+
+    // Click on cluster → zoom in
+    map.on('click', 'cell-clusters', (e) => {
+      const feat = map.queryRenderedFeatures(e.point, { layers: ['cell-clusters'] });
+      if (!feat.length) return;
+      const src = map.getSource('cell-erb') as GeoJSONSource;
+      src.getClusterExpansionZoom(feat[0].properties?.cluster_id).then(z => {
+        map.easeTo({ center: (feat[0].geometry as GeoJSON.Point).coordinates as [number, number], zoom: z });
+      });
+    });
+
+    // Click on point → popup
+    map.on('click', 'cell-points', (e) => {
+      if (!e.features?.length) return;
+      const idx = e.features[0].properties?.idx;
+      if (idx != null) {
+        setActiveIdx(idx);
+        openPopup(idx, (e.features[0].geometry as GeoJSON.Point).coordinates as [number, number]);
+      }
+    });
+
+    // Cursor pointer on hover
+    ['cell-clusters', 'cell-points'].forEach(id => {
+      map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
+      map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+    });
+  }, [filtered, clearLayers]);
+
   // ─── View mode switching ────────────────────────
 
   const applyViewMode = useCallback((mode: string) => {
     const map = mapRef.current;
     if (!map) return;
 
-    // Clear everything first
-    clearMarkers();
+    clearLayers();
     removeHeatmapLayer(map);
     removeDominanceLayer(map);
     removeCoverageCircles(map);
 
-    // Apply new mode
     if (mode === 'pins') {
-      if (indexRef.current) renderMarkers();
-      // Re-apply coverage if enabled
+      renderLayers();
       if (coverageRef.current) updateCoverageCircles(map, filtered, true);
     } else if (mode === 'heatmap') {
       addHeatmapLayer(map, filtered);
     } else if (mode === 'dominance') {
       addDominanceLayer(map, filtered);
     }
-  }, [filtered]);
+  }, [filtered, renderLayers, clearLayers]);
 
   const handleViewModeChange = useCallback((mode: string) => {
     viewModeRef.current = mode;
@@ -172,119 +238,34 @@ export default function CellMap() {
     }
   }, [filtered]);
 
-  // Rebuild cluster index when filtered data changes
+  // Re-render when filtered data changes
   useEffect(() => {
     if (filtered.length > 0) {
-      indexRef.current = buildIndex(filtered);
       applyViewMode(viewModeRef.current);
     }
   }, [filtered]);
-
-  // ─── Marker rendering ───────────────────────────
-
-  const clearMarkers = useCallback(() => {
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
-  }, []);
-
-  const renderMarkers = useCallback(() => {
-    const map = mapRef.current;
-    const index = indexRef.current;
-    if (!map || !index) return;
-
-    clearMarkers();
-
-    const bounds = map.getBounds();
-    const zoom = Math.floor(map.getZoom());
-
-    const clusters = index.getClusters(
-      [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
-      zoom
-    );
-
-    const markers: maplibregl.Marker[] = [];
-
-    for (const feature of clusters) {
-      const [lng, lat] = feature.geometry.coordinates;
-      const props = feature.properties as any;
-
-      if (props.cluster) {
-        // Cluster marker
-        const count = props.point_count;
-        const color = clusterColor(props);
-        const size = count < 50 ? 36 : count < 200 ? 44 : count < 1000 ? 52 : 60;
-
-        const el = document.createElement('div');
-        el.className = 'hypr-cluster';
-        el.style.cssText = `
-          width:${size}px;height:${size}px;border-radius:50%;
-          background:${color}22;border:1.5px solid ${color}80;
-          display:flex;align-items:center;justify-content:center;
-          cursor:pointer;transition:transform 0.15s;
-          font-family:Urbanist,sans-serif;font-size:${size < 44 ? 11 : 12}px;
-          font-weight:700;color:${color};
-        `;
-        el.textContent = count >= 1000 ? Math.round(count / 1000) + 'K' : String(count);
-        el.addEventListener('mouseenter', () => { el.style.transform = 'scale(1.1)'; });
-        el.addEventListener('mouseleave', () => { el.style.transform = 'scale(1)'; });
-        el.addEventListener('click', () => {
-          const expansionZoom = index.getClusterExpansionZoom(props.cluster_id);
-          map.easeTo({ center: [lng, lat], zoom: expansionZoom });
-        });
-
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map);
-        markers.push(marker);
-      } else {
-        // Individual point
-        const op = props.op;
-        const color = OPERADORA_COLORS[op] || OPERADORA_COLORS['Outras'];
-
-        const el = document.createElement('div');
-        el.style.cssText = `
-          width:12px;height:12px;border-radius:50%;
-          background:${color};
-          cursor:pointer;transition:box-shadow 0.15s;
-          box-shadow:0 0 0 2px ${color}30;
-        `;
-        el.addEventListener('mouseenter', () => { el.style.boxShadow = `0 0 0 5px ${color}40`; });
-        el.addEventListener('mouseleave', () => { el.style.boxShadow = `0 0 0 2px ${color}30`; });
-        el.addEventListener('click', () => {
-          const idx = props.idx;
-          setActiveIdx(idx);
-          openPopup(idx, [lng, lat]);
-        });
-
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map);
-        markers.push(marker);
-      }
-    }
-
-    markersRef.current = markers;
-  }, [filtered, clearMarkers]);
 
   // ─── Map setup ──────────────────────────────────
 
   const onMapReady = useCallback((map: MLMap) => {
     mapRef.current = map;
 
-    // Listen for map movements — update based on current view mode
+    // Native GeoJSON clustering handles move/zoom automatically.
+    // Only coverage circles and dominance need updates on zoom.
     const handleMapMove = () => {
       const mode = viewModeRef.current;
-      if (mode === 'pins') {
-        renderMarkers();
-        // Update coverage circles on pan/zoom
-        if (coverageRef.current) updateCoverageCircles(map, filtered, true);
+      if (mode === 'pins' && coverageRef.current) {
+        updateCoverageCircles(map, filtered, true);
       } else if (mode === 'dominance') {
         updateDominanceForZoom(map, filtered);
       }
     };
 
-    map.on('moveend', handleMapMove);
     map.on('zoomend', handleMapMove);
 
     // Initial render
     applyViewMode(viewModeRef.current);
-  }, [renderMarkers, filtered, applyViewMode]);
+  }, [filtered, applyViewMode]);
 
   // ─── Popup ──────────────────────────────────────
 
