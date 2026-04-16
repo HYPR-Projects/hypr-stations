@@ -144,14 +144,21 @@ export default function CellMap() {
       OPERADORA_COLORS.Outras,
     ];
 
-    const clusterColorExpr: any = [
-      'case',
-      ['all', ['>=', ['get', 'vivo'], ['get', 'claro']], ['>=', ['get', 'vivo'], ['get', 'tim']], ['>=', ['get', 'vivo'], ['get', 'brisanet']]], OPERADORA_COLORS.Vivo,
-      ['all', ['>=', ['get', 'claro'], ['get', 'vivo']], ['>=', ['get', 'claro'], ['get', 'tim']], ['>=', ['get', 'claro'], ['get', 'brisanet']]], OPERADORA_COLORS.Claro,
-      ['all', ['>=', ['get', 'tim'], ['get', 'vivo']], ['>=', ['get', 'tim'], ['get', 'claro']], ['>=', ['get', 'tim'], ['get', 'brisanet']]], OPERADORA_COLORS.TIM,
-      ['all', ['>=', ['get', 'brisanet'], ['get', 'vivo']], ['>=', ['get', 'brisanet'], ['get', 'claro']], ['>=', ['get', 'brisanet'], ['get', 'tim']]], OPERADORA_COLORS.Brisanet,
-      OPERADORA_COLORS.Outras,
-    ];
+    const clusterColorExpr: any = (() => {
+      const ops = ['vivo', 'claro', 'tim', 'brisanet', 'algar', 'unifique'] as const;
+      const colors: Record<string, string> = {
+        vivo: OPERADORA_COLORS.Vivo, claro: OPERADORA_COLORS.Claro,
+        tim: OPERADORA_COLORS.TIM, brisanet: OPERADORA_COLORS.Brisanet,
+        algar: OPERADORA_COLORS.Algar, unifique: OPERADORA_COLORS.Unifique,
+      };
+      const expr: any[] = ['case'];
+      for (const op of ops) {
+        const conds = ops.filter(o => o !== op).map(o => ['>=', ['get', op], ['get', o]]);
+        expr.push(['all', ...conds], colors[op]);
+      }
+      expr.push(OPERADORA_COLORS.Outras);
+      return expr;
+    })();
 
     map.addLayer({
       id: 'cell-clusters', type: 'circle', source: 'cell-erb',
