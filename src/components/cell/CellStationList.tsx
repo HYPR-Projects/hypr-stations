@@ -17,7 +17,7 @@ interface RowData {
   onToggleCart: (id: number) => void;
 }
 
-const ROW_HEIGHT = 74;
+const ROW_HEIGHT = 70;
 
 const StationRow = memo(function StationRow({
   index, style, ariaAttributes, erbs, cart, activeIdx, onFocus, onToggleCart,
@@ -26,45 +26,47 @@ const StationRow = memo(function StationRow({
   if (!e) return null;
   const sel = cart.has(e.id);
   const act = activeIdx === index;
+
   return (
     <div style={style} {...ariaAttributes}>
       <div tabIndex={0}
         onClick={() => onFocus(index)}
         onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onFocus(index); } }}
-        className={`flex items-start gap-3.5 px-4 py-3 cursor-pointer transition-all duration-150 h-full
-          border-b border-[var(--border)]
-          outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] focus-visible:ring-inset
-          ${sel ? 'bg-[var(--accent-muted)]'
-            : act ? 'bg-[var(--bg-surface2)]'
-            : 'hover:bg-[var(--hover-bg)]'}`}>
+        style={{ height: ROW_HEIGHT }}
+        className={`relative px-5 py-3 cursor-pointer transition-colors duration-150
+          outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent)]
+          ${sel ? 'bg-[var(--accent-muted)]' : act ? 'bg-[var(--bg-surface2)]' : 'hover:bg-[var(--hover-bg)]'}`}>
 
-        {/* Checkbox */}
-        <button onClick={ev => { ev.stopPropagation(); onToggleCart(e.id); }}
-          aria-label={sel ? `Remover ${e.prestadora_norm}` : `Adicionar ${e.prestadora_norm}`}
-          className={`w-5 h-5 mt-0.5 rounded-[6px] border-[1.5px] flex items-center justify-center shrink-0 cursor-pointer
-            transition-all duration-150 border-0 outline-none
-            ${sel ? 'bg-[var(--accent)]' : 'bg-[var(--input-bg)]'}`}
-          style={sel ? {} : { border: '1.5px solid var(--control-border)' }}>
-          {sel && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--on-accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
-        </button>
+        <div className="absolute bottom-0 left-5 right-5 h-px bg-[var(--border)]" />
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {/* Top line: operator + tech badges */}
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="text-[12px] font-semibold shrink-0" style={{ color: OPERADORA_COLORS[e.prestadora_norm] || OPERADORA_COLORS['Outras'] }}>
-              {e.prestadora_norm}
-            </span>
-            {e.tecnologias.map(t => (
-              <span key={t} className="text-[10px] font-semibold px-[6px] py-[1px] rounded-[4px] shrink-0"
-                style={{ color: TECH_COLORS[t] || '#576773', background: (TECH_COLORS[t] || '#576773') + '12' }}>
-                {t}
+        <div className="flex gap-3">
+          {/* Checkbox */}
+          <button onClick={ev => { ev.stopPropagation(); onToggleCart(e.id); }}
+            aria-label={sel ? `Remover ${e.prestadora_norm}` : `Adicionar ${e.prestadora_norm}`}
+            className="w-[18px] h-[18px] mt-[3px] rounded-[5px] flex items-center justify-center shrink-0 cursor-pointer
+              transition-all duration-150 border-0 outline-none"
+            style={sel
+              ? { background: 'var(--accent)' }
+              : { background: 'var(--input-bg)', border: '1.5px solid var(--control-border)' }}>
+            {sel && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--on-accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+          </button>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[12px] font-semibold shrink-0 leading-none"
+                style={{ color: OPERADORA_COLORS[e.prestadora_norm] || OPERADORA_COLORS['Outras'] }}>
+                {e.prestadora_norm}
               </span>
-            ))}
+              {e.tecnologias.map(t => (
+                <span key={t} className="text-[10px] font-bold px-[5px] py-[1px] rounded-[3px] shrink-0 leading-none"
+                  style={{ color: TECH_COLORS[t] || '#576773', background: (TECH_COLORS[t] || '#576773') + '12' }}>
+                  {t}
+                </span>
+              ))}
+            </div>
+            <div className="text-[12px] text-[var(--text-secondary)] leading-tight truncate">{e.municipio} — {e.uf}</div>
           </div>
-
-          {/* Location */}
-          <div className="text-[12px] text-[var(--text-secondary)] truncate leading-snug">{e.municipio} — {e.uf}</div>
         </div>
       </div>
     </div>
@@ -82,8 +84,7 @@ export default function CellStationList({ erbs, cart, activeIdx, onFocus, onTogg
 
   return (
     <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      {/* Header bar */}
-      <div className="flex items-center gap-2 px-4 h-10 border-b border-[var(--border)] shrink-0">
+      <div className="flex items-center gap-2 px-5 h-10 border-b border-[var(--border)] shrink-0">
         <span className="text-[12px] text-[var(--text-secondary)]">
           <strong className="text-[var(--accent)] font-semibold">{totalCount.toLocaleString('pt-BR')}</strong> ERBs
           {cart.size > 0 && <span className="text-[var(--text-muted)]"> · <strong className="text-[var(--text-primary)] font-semibold">{cart.size}</strong> no plano</span>}
