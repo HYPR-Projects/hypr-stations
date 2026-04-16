@@ -8,9 +8,12 @@ import CheckoutModal from '../shared/CheckoutModal';
 import { useAuth } from '../shared/AuthProvider';
 import CellFilters from './CellFilters';
 import CellStationList from './CellStationList';
+import ViewModeSelector from './ViewModeSelector';
+import DominancePanel from './DominancePanel';
 import { fetchERBs, getFilterOptions, type ERB } from './cellData';
 import { OPERADORA_COLORS, TECH_COLORS } from '../../lib/constants';
 import { formatAudience, estimateCellAudience, estimateCellRadius } from '../../lib/audience';
+import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom } from './analysisLayers';
 
 // ─── Supercluster setup ──────────────────────────
 
@@ -108,10 +111,12 @@ export default function CellMap() {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<string>('pins');
   const mapRef = useRef<MLMap | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const indexRef = useRef<Supercluster<ErbFeature['properties']> | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  const viewModeRef = useRef<string>('pins');
 
   // Load data
   useEffect(() => {
@@ -124,11 +129,38 @@ export default function CellMap() {
 
   const filterOptions = useMemo(() => getFilterOptions(allErbs), [allErbs]);
 
+  // ─── View mode switching ────────────────────────
+
+  const applyViewMode = useCallback((mode: string) => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Clear everything first
+    clearMarkers();
+    removeHeatmapLayer(map);
+    removeDominanceLayer(map);
+
+    // Apply new mode
+    if (mode === 'pins') {
+      if (indexRef.current) renderMarkers();
+    } else if (mode === 'heatmap') {
+      addHeatmapLayer(map, filtered);
+    } else if (mode === 'dominance') {
+      addDominanceLayer(map, filtered);
+    }
+  }, [filtered]);
+
+  const handleViewModeChange = useCallback((mode: string) => {
+    viewModeRef.current = mode;
+    setViewMode(mode);
+    applyViewMode(mode);
+  }, [applyViewMode]);
+
   // Rebuild cluster index when filtered data changes
   useEffect(() => {
     if (filtered.length > 0) {
       indexRef.current = buildIndex(filtered);
-      renderMarkers();
+      applyViewMode(viewModeRef.current);
     }
   }, [filtered]);
 
@@ -221,15 +253,24 @@ export default function CellMap() {
   const onMapReady = useCallback((map: MLMap) => {
     mapRef.current = map;
 
-    // Listen for map movements to update markers
-    map.on('moveend', renderMarkers);
-    map.on('zoomend', renderMarkers);
+    // Listen for map movements — update based on current view mode
+    const handleMapMove = () => {
+      const mode = viewModeRef.current;
+      if (mode === 'pins') {
+        renderMarkers();
+      } else if (mode === 'dominance') {
+        // Re-render dominance hexagons when zoom changes resolution
+        updateDominanceForZoom(map, filtered);
+      }
+      // Heatmap doesn't need move updates — MapLibre handles it natively
+    };
+
+    map.on('moveend', handleMapMove);
+    map.on('zoomend', handleMapMove);
 
     // Initial render
-    if (indexRef.current) {
-      renderMarkers();
-    }
-  }, [renderMarkers]);
+    applyViewMode(viewModeRef.current);
+  }, [renderMarkers, filtered, applyViewMode]);
 
   // ─── Popup ──────────────────────────────────────
 
@@ -414,16 +455,46 @@ export default function CellMap() {
       </aside>
 
       <MapContainer onMapReady={onMapReady}>
+        {/* View mode selector */}
+        {!loading && (
+          <ViewModeSelector mode={viewMode} onChange={handleViewModeChange} />
+        )}
+
+        {/* Dominance stats panel */}
+        {viewMode === 'dominance' && !loading && (
+          <DominancePanel erbs={filtered} resolution={mapRef.current ? (
+            mapRef.current.getZoom() < 4 ? 2 : mapRef.current.getZoom() < 5 ? 3 :
+            mapRef.current.getZoom() < 7 ? 4 : mapRef.current.getZoom() < 9 ? 5 :
+            mapRef.current.getZoom() < 11 ? 6 : 7
+          ) : 4} />
+        )}
+
         {/* Legend */}
         <div className="absolute bottom-4 right-4 z-10 rounded-lg border px-3 py-2 pointer-events-none bg-[var(--bg-surface)] border-[var(--border)]">
-          <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)] mb-1.5">Operadoras</div>
-          {Object.entries(opCounts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([op, n]) => (
-            <div key={op} className="flex items-center gap-1.5 text-[11px] text-[var(--text-primary)] mb-0.5">
-              <span className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ background: OPERADORA_COLORS[op] || OPERADORA_COLORS['Outras'] }} />
-              {op} — {n.toLocaleString('pt-BR')}
+          {viewMode === 'heatmap' ? (<>
+            <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)] mb-1.5">Densidade</div>
+            <div className="flex items-center gap-1 mb-1">
+              <div className="h-2 flex-1 rounded-full" style={{
+                background: 'linear-gradient(to right, rgba(33,102,172,0.4), rgba(51,151,185,0.6), rgba(102,194,165,0.7), rgba(237,217,0,0.8), rgba(245,39,43,0.85))'
+              }} />
             </div>
-          ))}
+            <div className="flex justify-between text-[9px] text-[var(--text-muted)]">
+              <span>Baixa</span><span>Alta</span>
+            </div>
+          </>) : viewMode === 'dominance' ? (<>
+            <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)] mb-1.5">Dominância</div>
+            <div className="text-[10px] text-[var(--text-muted)] mb-1">Cor = operadora com mais ERBs na região</div>
+            <div className="text-[9px] text-[var(--text-muted)] opacity-70">Opacidade = grau de domínio</div>
+          </>) : (<>
+            <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--text-muted)] mb-1.5">Operadoras</div>
+            {Object.entries(opCounts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([op, n]) => (
+              <div key={op} className="flex items-center gap-1.5 text-[11px] text-[var(--text-primary)] mb-0.5">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ background: OPERADORA_COLORS[op] || OPERADORA_COLORS['Outras'] }} />
+                {op} — {n.toLocaleString('pt-BR')}
+              </div>
+            ))}
+          </>)}
           <div className="text-[9px] text-[var(--text-muted)] mt-1.5">Fonte: Anatel/SMP · 2026</div>
         </div>
 
