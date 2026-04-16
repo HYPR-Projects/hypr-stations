@@ -53,7 +53,7 @@ export default function HubStats() {
       {STATS.map((stat, i) => (
         <div
           key={stat.label}
-          className="bg-[var(--bg-surface)] border-[0.5px] border-[var(--border)] rounded-xl
+          className="bg-[var(--bg-surface)] border-[0.5px] border-[var(--border)] rounded-[12px]
                      px-6 py-[22px] transition-all duration-250 cursor-default
                      hover:bg-[var(--bg-surface2)] hover:border-[var(--border-hover)]"
           style={{ animation: `fadeUp 0.45s ease ${0.06 + i * 0.04}s both` }}

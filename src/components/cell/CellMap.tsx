@@ -274,8 +274,8 @@ export default function CellMap() {
     if (!e || !mapRef.current) return;
     if (popupRef.current) popupRef.current.remove();
 
-    const opColor = OPERADORA_COLORS[e.prestadora_norm] || '#999';
-    const techColor = TECH_COLORS[e.tech_principal] || '#999';
+    const opColor = OPERADORA_COLORS[e.prestadora_norm] || '#7a6e64';
+    const techColor = TECH_COLORS[e.tech_principal] || '#576773';
     const radius = estimateCellRadius(e.tech_principal, e.freq_mhz[0]);
     const aud = estimateCellAudience(e.tech_principal, e.uf, e.freq_mhz[0]);
 
@@ -347,7 +347,7 @@ export default function CellMap() {
       coords.push([lng, lat]);
     }
 
-    const color = OPERADORA_COLORS[e.prestadora_norm] || '#3397B9';
+    const color = OPERADORA_COLORS[e.prestadora_norm] || '#4db8d4';
 
     map.addSource(sourceId, {
       type: 'geojson',
