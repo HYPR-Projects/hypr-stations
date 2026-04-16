@@ -15,7 +15,7 @@ export default function SelectionBar({ count, summary, onCheckout, onDownload, c
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-0 left-0 right-0 z-[1400] border-t px-7 py-3.5
+      className="fixed bottom-0 left-0 right-0 z-[1400] border-t px-5 md:px-7 py-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom))] md:pb-3.5
                  flex items-center gap-4
                  bg-[var(--bg-surface)] border-[var(--border)]
                  animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)]"

@@ -77,6 +77,7 @@ export default function CellStationList({ erbs, cart, activeIdx, onFocus, onTogg
       <div className="flex items-center gap-2 px-5 h-10 border-b border-[var(--border)] shrink-0">
         <span className="text-[12px] text-[var(--text-secondary)]">
           <strong className="text-[var(--accent)] font-semibold">{totalCount.toLocaleString('pt-BR')}</strong> ERBs
+          {cart.size > 0 && <span className="text-[var(--text-muted)]"> · <strong className="text-[var(--text-primary)] font-semibold">{cart.size}</strong> no plano</span>}
         </span>
         <span className="ml-auto" />
         <button onClick={onSelectAll} className="text-[11px] text-[var(--text-muted)] hover:text-[var(--accent)] cursor-pointer transition-colors font-medium whitespace-nowrap bg-transparent border-none p-0">
@@ -86,6 +87,14 @@ export default function CellStationList({ erbs, cart, activeIdx, onFocus, onTogg
           Limpar</button>
       </div>
 
+      {erbs.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center">
+            <p className="text-[13px] text-[var(--text-muted)] mb-2">Nenhuma ERB encontrada</p>
+            <p className="text-[12px] text-[var(--text-muted)]">Tente ajustar os filtros</p>
+          </div>
+        </div>
+      ) : (
       <div className="flex-1 min-h-0">
         <List
           listRef={listRef}
@@ -98,6 +107,7 @@ export default function CellStationList({ erbs, cart, activeIdx, onFocus, onTogg
           style={{ height: '100%' }}
         />
       </div>
+      )}
     </div>
   );
 }

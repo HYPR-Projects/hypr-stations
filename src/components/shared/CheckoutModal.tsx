@@ -105,10 +105,20 @@ export default function CheckoutModal({ open, onClose, stations }: CheckoutModal
           ×
         </button>
 
+        {/* Step indicator */}
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-200 ${step === 'form' ? 'bg-[var(--accent)]' : 'bg-[var(--border-active)]'}`} />
+          <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-200 ${step === 'execs' ? 'bg-[var(--accent)]' : 'bg-[var(--border-active)]'}`} />
+        </div>
+
         {/* KPIs */}
         <div className="text-center mb-5">
-          <h2 id="checkout-title" className="font-heading text-[18px] font-semibold text-[var(--text-primary)]">Montar plano</h2>
-          <p className="text-[12px] text-[var(--text-muted)] mt-1.5">Revise a seleção e envie via WhatsApp</p>
+          <h2 id="checkout-title" className="font-heading text-[18px] font-semibold text-[var(--text-primary)]">
+            {step === 'form' ? 'Montar plano' : 'Enviar via WhatsApp'}
+          </h2>
+          <p className="text-[12px] text-[var(--text-muted)] mt-1.5">
+            {step === 'form' ? 'Revise a seleção e preencha seus dados' : 'Escolha um executivo para contato'}
+          </p>
         </div>
 
         <div className="grid grid-cols-3 gap-3 mb-5">

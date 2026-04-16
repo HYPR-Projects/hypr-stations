@@ -37,6 +37,8 @@ export default function CellMap() {
   const [loading, setLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
   const [cart, setCart] = useState<Set<number>>(new Set());
+  const cartRef = useRef<Set<number>>(cart);
+  cartRef.current = cart;
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -267,6 +269,9 @@ export default function CellMap() {
     syncLayers();
   }, [syncLayers]);
 
+  const toggleCart = useCallback((id: number) => {
+    setCart(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }, []);
 
   const openPopup = useCallback((idx: number, coords: [number, number]) => {
     const e = filteredRef.current[idx];
@@ -322,11 +327,19 @@ export default function CellMap() {
         <div style="font-size:10px;letter-spacing:0.04em;text-transform:uppercase;color:${c.textMuted};margin-bottom:4px">População no raio</div>
         <div style="font-weight:700;font-size:18px;color:${c.accent};letter-spacing:-0.01em">${formatAudience(aud)} devices</div>
       </div>` : ''}
-      <div style="font-size:10px;color:${c.textFaint};text-align:center;padding:0 22px 14px;opacity:${c.footerOpacity}">Anatel Fev/2026 · Modelo HYPR</div>
+      <div style="font-size:10px;color:${c.textFaint};text-align:center;padding:0 22px 4px;opacity:${c.footerOpacity}">Anatel Fev/2026 · Modelo HYPR</div>
+      <div style="padding:0 14px 14px">
+        <button data-cart-id="${e.id}" style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;font-family:Urbanist,sans-serif;cursor:pointer;transition:all 0.15s;border:0.5px solid ${cartRef.current.has(e.id) ? 'var(--color-red-400)' : c.accent};background:${cartRef.current.has(e.id) ? 'transparent' : c.accent};color:${cartRef.current.has(e.id) ? 'var(--color-red-400)' : 'var(--on-accent)'}">${cartRef.current.has(e.id) ? 'Remover do plano' : 'Adicionar ao plano'}</button>
+      </div>
     </div>`;
 
     const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '360px', offset: 10 })
       .setLngLat(coords).setHTML(html).addTo(mapRef.current!);
+    const el = popup.getElement();
+    el?.querySelector('[data-cart-id]')?.addEventListener('click', () => {
+      toggleCart(e.id);
+      popup.remove();
+    });
     popupRef.current = popup;
     popup.on('close', () => { popupRef.current = null; });
 
@@ -387,11 +400,10 @@ export default function CellMap() {
     setTimeout(() => openPopup(i, [e.lng, e.lat]), 400);
   }, [openPopup]);
 
-
-  const toggleCart = useCallback((id: number) => {
-    setCart(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  }, []);
-  const clearCart = useCallback(() => setCart(new Set()), []);
+  const clearCart = useCallback(() => {
+    if (cart.size > 10 && !confirm(`Remover ${cart.size} ERBs do plano?`)) return;
+    setCart(new Set());
+  }, [cart.size]);
   const selectAll = useCallback(() => {
     setCart(p => { const n = new Set(p); filteredRef.current.forEach(e => n.add(e.id)); return n; });
   }, []);
@@ -494,6 +506,9 @@ export default function CellMap() {
           className="md:hidden absolute top-3.5 left-3.5 z-10 w-10 h-10 rounded-[10px] flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--accent)] cursor-pointer overlay-panel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="18" y2="18"/></svg>
+          {filtered.length !== allErbs.length && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[var(--accent)] text-[var(--on-accent)] text-[9px] font-bold flex items-center justify-center">!</span>
+          )}
         </button>
 
         {/* Coverage radius toggle */}
