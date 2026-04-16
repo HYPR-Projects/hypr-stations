@@ -2,7 +2,6 @@ import type { Map as MLMap } from 'maplibre-gl';
 import { OPERADORA_COLORS } from '../../lib/constants';
 import type { ERB } from './cellData';
 
-// ─── Heatmap Layer ───────────────────────────────
 
 const HEATMAP_SOURCE = 'erb-heatmap';
 const HEATMAP_LAYER = 'erb-heatmap-layer';
@@ -46,7 +45,6 @@ export function removeHeatmapLayer(map: MLMap) {
   if (map.getSource(HEATMAP_SOURCE)) map.removeSource(HEATMAP_SOURCE);
 }
 
-// ─── Dominance Layer (pre-computed H3) ───────────
 
 const DOM_SOURCE = 'erb-dominance';
 const DOM_FILL = 'erb-dominance-fill';
@@ -200,7 +198,6 @@ export function forceRedrawDominance(map: MLMap, opts: DominanceOptions = {}) {
   addDominanceLayer(map, opts);
 }
 
-// ─── Stats ──────────────────────────────────────
 
 export interface DominanceStats {
   byOperator: { op: string; count: number; pct: number; hexCount: number }[];

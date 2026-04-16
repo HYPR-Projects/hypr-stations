@@ -1,10 +1,8 @@
-// ═══════════════════════════════════════════════════
 // HYPR Station — Audience & Coverage Models
 // Shared between Radio Map and Cell Map
-// ═══════════════════════════════════════════════════
 
 // Population density by UF (devices per km²)
-export const UF_DENSITY: Record<string, number> = {
+const UF_DENSITY: Record<string, number> = {
   AC: 2.1, AL: 8.5, AM: 1.3, AP: 1.5, BA: 7.2, CE: 12.0,
   DF: 85.0, ES: 15.0, GO: 6.5, MA: 5.0, MG: 8.0, MS: 3.2,
   MT: 2.0, PA: 2.5, PB: 9.0, PE: 14.0, PI: 4.5, PR: 10.0,
@@ -12,7 +10,6 @@ export const UF_DENSITY: Record<string, number> = {
   SE: 10.0, SP: 35.0, TO: 2.0,
 };
 
-// ── Radio coverage model ──
 
 const ERP_FALLBACK: Record<string, number> = {
   A: 100, A1: 30, A2: 19, A3: 14, A4: 5,
@@ -50,7 +47,6 @@ export function estimateRadioAudience(
   return Math.round(area * density * pen * campMult);
 }
 
-// ── Cell coverage model ──
 
 // Estimated radius (km) by technology + frequency band
 const CELL_RADIUS: Record<string, Record<string, number>> = {
@@ -82,7 +78,6 @@ export function estimateCellAudience(tech: string, uf: string, freqMhz?: number)
   return Math.round(area * baseDensity * mobilePen * campMult);
 }
 
-// ── Formatting ──
 
 export function formatAudience(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';

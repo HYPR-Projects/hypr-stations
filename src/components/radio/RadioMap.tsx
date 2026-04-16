@@ -7,18 +7,18 @@ import CheckoutModal from '../shared/CheckoutModal';
 import { useAuth } from '../shared/AuthProvider';
 import RadioFilters from './RadioFilters';
 import StationList from './StationList';
+import MobileDrawer from '../shared/MobileDrawer';
 import { loadRadioData, type RadioStation, type RadioData } from './radioData';
 import { RADIO_COLORS } from '../../lib/constants';
 import { formatAudience, estimateRadioAudience, estimateRadioRadius, getRadioERP } from '../../lib/audience';
+import { downloadCSV } from '../../lib/csv';
 
-function downloadCSV(cart: Set<number>, allStations: RadioStation[]) {
+const RADIO_CSV_HEADERS = ['tipo','municipio','uf','frequencia','classe','categoria','erp','entidade','carater','finalidade','lat','lng'];
+
+function exportRadioCSV(cart: Set<number>, allStations: RadioStation[]) {
   const sel = [...cart].map(sid => allStations.find(s => s._sid === sid)).filter(Boolean) as RadioStation[];
   if (!sel.length) return;
-  const h = ['tipo','municipio','uf','frequencia','classe','categoria','erp','entidade','carater','finalidade','lat','lng'];
-  const rows = [h.join(','), ...sel.map(s => h.map(k => { let v = String((s as Record<string,unknown>)[k] ?? ''); if (/[,"\n]/.test(v)) v = '"' + v.replace(/"/g,'""') + '"'; return v; }).join(','))];
-  const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: 'HYPR_RadioMap_' + new Date().toISOString().slice(0,10) + '.csv' });
-  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+  downloadCSV(RADIO_CSV_HEADERS, sel as unknown as Record<string, unknown>[], 'HYPR_RadioMap_' + new Date().toISOString().slice(0, 10) + '.csv');
 }
 
 export default function RadioMap() {
@@ -212,24 +212,11 @@ export default function RadioMap() {
       </MapContainer>
     </div>
 
-    {/* Mobile drawer */}
-    {drawerOpen && (<>
-      <div className="fixed inset-0 z-[1500] bg-[var(--overlay)]" style={{ backdropFilter:'blur(2px)' }} onClick={() => setDrawerOpen(false)} />
-      <div className="fixed bottom-0 left-0 right-0 z-[1600] bg-[var(--bg-surface)] rounded-t-[16px] border-t border-[var(--border)] max-h-[85vh] flex flex-col animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)]">
-        <div className="w-9 h-1 bg-[var(--border-hover)] rounded-full mx-auto mt-3" />
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)]">
-          <span className="text-[13px] font-semibold text-[var(--text-primary)]">Filtros</span>
-          <button onClick={() => setDrawerOpen(false)} className="w-7 h-7 rounded-lg bg-[var(--bg-surface2)] text-[var(--text-muted)] hover:bg-[var(--bg-surface3)] flex items-center justify-center cursor-pointer text-[13px] transition-colors">×</button>
-        </div>
-        <div className="overflow-y-auto flex-1">
-          <RadioFilters stations={allStations} onFilter={onFilter} allUFs={data?.allUFs ?? []} allClasses={data?.allClasses ?? []} allFinalidades={data?.allFinalidades ?? []} />
-          <div className="p-5"><button onClick={() => setDrawerOpen(false)}
-            className="w-full py-3 rounded-[10px] bg-[var(--accent)] text-[var(--on-accent)] font-heading font-semibold text-[13px] cursor-pointer hover:opacity-90 transition-opacity">Aplicar</button></div>
-        </div>
-      </div>
-    </>)}
+    <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title="Filtros">
+      <RadioFilters stations={allStations} onFilter={onFilter} allUFs={data?.allUFs ?? []} allClasses={data?.allClasses ?? []} allFinalidades={data?.allFinalidades ?? []} />
+    </MobileDrawer>
 
-    <SelectionBar count={cart.size} summary={summary} onCheckout={isHypr ? () => setCheckoutOpen(true) : login} onDownload={isHypr ? () => downloadCSV(cart, allStations) : login} canDownload={isHypr} />
+    <SelectionBar count={cart.size} summary={summary} onCheckout={isHypr ? () => setCheckoutOpen(true) : login} onDownload={isHypr ? () => exportRadioCSV(cart, allStations) : login} canDownload={isHypr} />
     <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} stations={ckStations} />
   </>);
 }

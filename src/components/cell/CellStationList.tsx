@@ -93,6 +93,8 @@ export default function CellStationList({ erbs, cart, activeIdx, onFocus, onTogg
           rowHeight={ROW_HEIGHT}
           rowComponent={StationRow}
           rowProps={{ erbs, cart, activeIdx, onFocus, onToggleCart } satisfies RowData}
+          role="list"
+          aria-label="ERBs"
           style={{ height: '100%' }}
         />
       </div>

@@ -28,7 +28,7 @@ function erbToCircleCoords(e: ERB): number[][] | null {
   return coords;
 }
 
-export function addCoverageCircles(map: MLMap, erbs: ERB[]) {
+function addCoverageCircles(map: MLMap, erbs: ERB[]) {
   removeCoverageCircles(map);
 
   // Only draw for visible ERBs in the viewport

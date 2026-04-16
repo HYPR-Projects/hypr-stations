@@ -142,11 +142,11 @@ export default function CheckoutModal({ open, onClose, stations }: CheckoutModal
               Seus dados
             </div>
             <div className="grid gap-2 mb-4">
-              <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome" className={inputCls} />
-              <input value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))} placeholder="Empresa" className={inputCls} />
-              <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Email" className={inputCls} />
-              <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: formatPhone(e.target.value) }))} placeholder="Telefone (DDD)" className={inputCls} />
-              <select value={form.budget} onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
+              <input aria-label="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nome" className={inputCls} />
+              <input aria-label="Empresa" value={form.company} onChange={e => setForm(f => ({ ...f, company: e.target.value }))} placeholder="Empresa" className={inputCls} />
+              <input aria-label="Email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Email" className={inputCls} />
+              <input aria-label="Telefone" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: formatPhone(e.target.value) }))} placeholder="Telefone (DDD)" className={inputCls} />
+              <select aria-label="Orçamento estimado" value={form.budget} onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
                       className={inputCls + ' cursor-pointer'}>
                 <option value="">Orçamento estimado</option>
                 <option value="Até R$10K">Até R$10K</option>

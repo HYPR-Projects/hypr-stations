@@ -12,7 +12,7 @@ interface Props {
   allFinalidades: string[];
 }
 
-export interface RadioFilterState {
+interface RadioFilterState {
   types: Set<string>; ufs: Set<string>; classes: Set<string>; finalidades: Set<string>;
   cidade: string; entidade: string; nome: string;
 }
@@ -74,8 +74,7 @@ export default function RadioFilters({ stations, onFilter, allUFs, allClasses, a
         <button
           type="button"
           onClick={() => setAdvOpen(!advOpen)}
-          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
-          className="flex items-center justify-between w-full cursor-pointer outline-none"
+          className="flex items-center justify-between w-full cursor-pointer outline-none bg-transparent border-none p-0 font-[inherit]"
         >
           <span className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)]">
             Filtros avançados
@@ -93,7 +92,7 @@ export default function RadioFilters({ stations, onFilter, allUFs, allClasses, a
               <label htmlFor={`c-${uid}`} className="block text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-1.5">Cidade</label>
               <input id={`c-${uid}`} value={f.cidade} onChange={e => upd({ cidade: e.target.value })}
                 placeholder="Buscar cidade..."
-                style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)', boxSizing: 'border-box' }}
+                style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
                 className="block w-full max-w-full h-8 px-3 rounded-md text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors duration-200" />
             </div>
 
@@ -107,7 +106,7 @@ export default function RadioFilters({ stations, onFilter, allUFs, allClasses, a
               <label htmlFor={`e-${uid}`} className="block text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-1.5">Entidade</label>
               <input id={`e-${uid}`} value={f.entidade} onChange={e => upd({ entidade: e.target.value })}
                 placeholder="Buscar entidade..."
-                style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)', boxSizing: 'border-box' }}
+                style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
                 className="block w-full max-w-full h-8 px-3 rounded-md text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors duration-200" />
             </div>
 
@@ -115,12 +114,12 @@ export default function RadioFilters({ stations, onFilter, allUFs, allClasses, a
               <label htmlFor={`n-${uid}`} className="block text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-1.5">Nome da rádio</label>
               <input id={`n-${uid}`} value={f.nome} onChange={e => upd({ nome: e.target.value })}
                 placeholder="Jovem Pan, Band, CBN..."
-                style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)', boxSizing: 'border-box' }}
+                style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border)' }}
                 className="block w-full max-w-full h-8 px-3 rounded-md text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors duration-200" />
             </div>
 
             <button onClick={reset} type="button"
-              style={{ background: 'none', border: '1px solid var(--input-border-subtle)', boxSizing: 'border-box' }}
+              style={{ background: 'none', border: '1px solid var(--input-border-subtle)' }}
               className="block w-full max-w-full h-8 rounded-md text-[11px] font-medium text-[var(--accent)]
                          hover:border-[var(--accent)] cursor-pointer transition-colors duration-200">
               Limpar filtros

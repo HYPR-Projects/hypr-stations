@@ -99,6 +99,8 @@ export default function StationList({ stations, cart, activeIdx, onFocus, onTogg
           rowHeight={ROW_HEIGHT}
           rowComponent={StationRow}
           rowProps={{ stations, cart, activeIdx, onFocus, onToggleCart } satisfies RowData}
+          role="list"
+          aria-label="Estações"
           style={{ height: '100%' }}
         />
       </div>

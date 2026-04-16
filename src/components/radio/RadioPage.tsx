@@ -9,6 +9,7 @@ export default function RadioPage() {
       <div className="h-screen flex flex-col">
         <Header currentPage="/radio" showAuth={true} />
         <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <h1 className="sr-only">Radio Map — Estações FM e AM do Brasil</h1>
           <ErrorBoundary>
             <RadioMap />
           </ErrorBoundary>

@@ -1,6 +1,4 @@
-// ═══════════════════════════════════════════════════
 // HYPR Station — Shared Constants
-// ═══════════════════════════════════════════════════
 
 // Map product definitions
 export const MAPS = {
@@ -39,7 +37,6 @@ export const MAPS = {
   },
 } as const;
 
-export type MapId = keyof typeof MAPS;
 export type MapStatus = 'active' | 'coming-soon' | 'planned';
 
 // Operadora colors (V3 — desaturated, elegant)

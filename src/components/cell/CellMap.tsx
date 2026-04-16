@@ -7,6 +7,7 @@ import CheckoutModal from '../shared/CheckoutModal';
 import { useAuth } from '../shared/AuthProvider';
 import CellFilters from './CellFilters';
 import CellStationList from './CellStationList';
+import MobileDrawer from '../shared/MobileDrawer';
 import ViewModeSelector from './ViewModeSelector';
 import DominancePanel from './DominancePanel';
 import { fetchERBs, getFilterOptions, type ERB } from './cellData';
@@ -14,29 +15,20 @@ import { OPERADORA_COLORS, TECH_COLORS } from '../../lib/constants';
 import { formatAudience, estimateCellAudience, estimateCellRadius } from '../../lib/audience';
 import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, forceRedrawDominance, loadDominanceData, type DominanceOptions } from './analysisLayers';
 import { updateCoverageCircles, removeCoverageCircles } from './coverageLayer';
+import { downloadCSV } from '../../lib/csv';
 
-// ─── CSV export ──────────────────────────────────
+const CELL_CSV_HEADERS = ['prestadora_norm', 'uf', 'municipio', 'lat', 'lng', 'tech_principal', 'tecnologias'];
 
-function downloadCSV(erbs: ERB[], cart: Set<number>) {
+function exportCellCSV(erbs: ERB[], cart: Set<number>) {
   const sel = erbs.filter(e => cart.has(e.id));
   if (!sel.length) return;
-  const h = ['operadora', 'uf', 'municipio', 'lat', 'lng', 'tech_principal', 'tecnologias'];
-  const rows = [
-    h.join(','),
-    ...sel.map(e => [
-      e.prestadora_norm, e.uf, `"${e.municipio}"`, e.lat, e.lng,
-      e.tech_principal, `"${e.tecnologias.join(';')}"`,
-    ].join(',')),
-  ];
-  const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-  const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(blob),
-    download: 'HYPR_CellMap_' + new Date().toISOString().slice(0, 10) + '.csv',
-  });
-  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
+  const rows = sel.map(e => ({
+    ...e,
+    tecnologias: e.tecnologias.join(';'),
+  }));
+  downloadCSV(CELL_CSV_HEADERS, rows as unknown as Record<string, unknown>[], 'HYPR_CellMap_' + new Date().toISOString().slice(0, 10) + '.csv');
 }
 
-// ─── Main component ──────────────────────────────
 
 export default function CellMap() {
   const { isHypr, login } = useAuth();
@@ -78,7 +70,6 @@ export default function CellMap() {
 
   const filterOptions = useMemo(() => getFilterOptions(allErbs), [allErbs]);
 
-  // ─── Layer management (reads from refs, no stale closures) ───
 
   const clearLayers = useCallback(() => {
     const map = mapRef.current;
@@ -195,7 +186,6 @@ export default function CellMap() {
     if (coverageRef.current) updateCoverageCircles(map, data, true);
   }, [clearLayers]);
 
-  // ─── View mode switching ────────────────────────
 
   const handleViewModeChange = useCallback((mode: string) => {
     viewModeRef.current = mode;
@@ -233,7 +223,6 @@ export default function CellMap() {
     }
   }, [filtered, syncLayers]);
 
-  // ─── Map setup ──────────────────────────────────
 
   const onMapReady = useCallback((map: MLMap) => {
     mapRef.current = map;
@@ -278,7 +267,6 @@ export default function CellMap() {
     syncLayers();
   }, [syncLayers]);
 
-  // ─── Popup ──────────────────────────────────────
 
   const openPopup = useCallback((idx: number, coords: [number, number]) => {
     const e = filteredRef.current[idx];
@@ -345,7 +333,6 @@ export default function CellMap() {
     drawCoverageCircle(e, coords, radius);
   }, []);
 
-  // ─── Coverage circle ────────────────────────────
 
   const drawCoverageCircle = useCallback((e: ERB, center: [number, number], radiusKm: number) => {
     const map = mapRef.current;
@@ -388,11 +375,9 @@ export default function CellMap() {
     }
   }, []);
 
-  // ─── Filter handler ─────────────────────────────
 
   const onFilter = useCallback((nf: ERB[]) => { setFiltered(nf); }, []);
 
-  // ─── Station focus ──────────────────────────────
 
   const focusStation = useCallback((i: number) => {
     const e = filteredRef.current[i];
@@ -402,7 +387,6 @@ export default function CellMap() {
     setTimeout(() => openPopup(i, [e.lng, e.lat]), 400);
   }, [openPopup]);
 
-  // ─── Cart ───────────────────────────────────────
 
   const toggleCart = useCallback((id: number) => {
     setCart(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -426,7 +410,6 @@ export default function CellMap() {
       audience: estimateCellAudience(e.tech_principal, e.uf, e.freq_mhz?.[0] ?? 0),
     })), [cart, allErbs]);
 
-  // ─── Legend counts ──────────────────────────────
 
   const opCounts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -434,7 +417,6 @@ export default function CellMap() {
     return m;
   }, [filtered]);
 
-  // ─── Render ─────────────────────────────────────
 
   return (<>
     <div className="flex flex-1 h-full min-h-0 overflow-hidden">
@@ -529,30 +511,13 @@ export default function CellMap() {
       </MapContainer>
     </div>
 
-    {/* Mobile drawer */}
-    {drawerOpen && (<>
-      <div className="fixed inset-0 z-[1500] bg-[var(--overlay)]" style={{ backdropFilter: 'blur(2px)' }} onClick={() => setDrawerOpen(false)} />
-      <div className="fixed bottom-0 left-0 right-0 z-[1600] bg-[var(--bg-surface)] rounded-t-[16px] border-t border-[var(--border)] max-h-[85vh] flex flex-col animate-[slideUp_0.3s_cubic-bezier(0.32,0.72,0,1)]">
-        <div className="w-9 h-1 bg-[var(--border-hover)] rounded-full mx-auto mt-3" />
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border)]">
-          <span className="text-[13px] font-semibold text-[var(--text-primary)]">Filtros</span>
-          <button onClick={() => setDrawerOpen(false)}
-            className="w-7 h-7 rounded-lg bg-[var(--bg-surface2)] text-[var(--text-muted)] hover:bg-[var(--bg-surface3)] flex items-center justify-center cursor-pointer text-[13px] transition-colors">×</button>
-        </div>
-        <div className="overflow-y-auto flex-1">
-          <CellFilters erbs={allErbs} onFilter={onFilter} filterOptions={filterOptions} />
-          <div className="p-5">
-            <button onClick={() => setDrawerOpen(false)}
-              className="w-full py-3 rounded-[10px] bg-[var(--accent)] text-[var(--on-accent)] font-heading font-semibold text-[13px] cursor-pointer hover:opacity-90 transition-opacity">
-              Aplicar</button>
-          </div>
-        </div>
-      </div>
-    </>)}
+    <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title="Filtros">
+      <CellFilters erbs={allErbs} onFilter={onFilter} filterOptions={filterOptions} />
+    </MobileDrawer>
 
     <SelectionBar count={cart.size} summary={summary}
       onCheckout={isHypr ? () => setCheckoutOpen(true) : login}
-      onDownload={isHypr ? () => downloadCSV(allErbs, cart) : login}
+      onDownload={isHypr ? () => exportCellCSV(allErbs, cart) : login}
       canDownload={isHypr} />
     <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} stations={ckStations} />
   </>);

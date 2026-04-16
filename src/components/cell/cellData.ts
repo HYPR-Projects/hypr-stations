@@ -1,6 +1,5 @@
 import { supabase } from '../../lib/supabase';
 
-// ─── Types ───────────────────────────────────────
 export interface ERB {
   id: number;
   prestadora_norm: string;
@@ -20,14 +19,12 @@ export interface ERB {
   azimutes?: number[];
 }
 
-// ─── Compact JSON format ─────────────────────────
 // Cols: [id, op, num, uf, mun, lat, lng, techs, tech]
 interface CompactData {
   meta: { count: number; generated: string; source: string; cols: string[] };
   data: [number, string, string, string, string, number, number, string[], string][];
 }
 
-// ─── Fetch all ERBs from static JSON ─────────────
 let _cache: ERB[] | null = null;
 
 export async function fetchERBs(onProgress?: (loaded: number) => void): Promise<ERB[]> {
@@ -66,7 +63,6 @@ export async function fetchERBs(onProgress?: (loaded: number) => void): Promise<
   }
 }
 
-// ─── Supabase fallback (in case JSON is stale) ───
 async function fetchFromSupabase(onProgress?: (loaded: number) => void): Promise<ERB[]> {
   const cols = 'id,prestadora_norm,num_estacao,uf,municipio,lat,lng,tecnologias,tech_principal';
   const pageSize = 1000;
@@ -93,7 +89,6 @@ async function fetchFromSupabase(onProgress?: (loaded: number) => void): Promise
   return all;
 }
 
-// ─── Fetch single ERB detail (on popup) ──────────
 export async function fetchERBDetail(id: number): Promise<ERB | null> {
   const { data, error } = await supabase
     .from('erb')
@@ -105,7 +100,6 @@ export async function fetchERBDetail(id: number): Promise<ERB | null> {
   return data as ERB;
 }
 
-// ─── Derived filter options ──────────────────────
 export function getFilterOptions(erbs: ERB[]) {
   const ufs = new Set<string>();
   const operadoras = new Set<string>();

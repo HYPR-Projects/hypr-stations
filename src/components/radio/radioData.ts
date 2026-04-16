@@ -1,8 +1,6 @@
-// ═══════════════════════════════════════════════════
 // HYPR Station — Radio Map Data (lazy-loaded)
 // Source: Anatel/SRD · ~3890 stations
 // Data loaded from /assets/radio-stations.json
-// ═══════════════════════════════════════════════════
 
 export interface RadioStation {
   _sid: number;
