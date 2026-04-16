@@ -62,21 +62,22 @@ export default function CellFilters({ erbs, onFilter, filterOptions }: Props) {
     apply(INITIAL);
   }, [apply]);
 
+  const inputStyle = `w-full h-8 px-3 rounded-md text-[12px]
+    bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.10)]
+    text-[var(--text-primary)] placeholder:text-[var(--text-faint)]
+    outline-none focus:border-[var(--accent)] transition-colors duration-200`;
+
   return (
-    <div className="flex flex-col shrink-0">
-      {/* Primary: Technology */}
-      <div className="px-5 py-[18px] border-b border-[var(--border)]">
-        <div className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-3">
-          Tecnologia
-        </div>
+    <div className="flex flex-col shrink-0 overflow-hidden">
+      {/* Technology */}
+      <div className="px-4 pt-4 pb-4 border-b border-[var(--border)]">
+        <div className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-2.5">Tecnologia</div>
         <ToggleGroup label="Tecnologia" options={TECH_OPTS} active={f.techs} onChange={techs => upd({ techs })} />
       </div>
 
-      {/* Primary: Operator chips */}
-      <div className="px-5 py-[18px] border-b border-[var(--border)]">
-        <div className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-3">
-          Operadora
-        </div>
+      {/* Operators */}
+      <div className="px-4 pt-4 pb-4 border-b border-[var(--border)]">
+        <div className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-2.5">Operadora</div>
         <div className="flex flex-wrap gap-1.5">
           {filterOptions.operadoras.map(op => {
             const on = f.operadoras.size === 0 || f.operadoras.has(op);
@@ -91,11 +92,13 @@ export default function CellFilters({ erbs, onFilter, filterOptions }: Props) {
                   upd({ operadoras: n.size === filterOptions.operadoras.length ? new Set() : n });
                 }
               }}
-                className={`flex items-center gap-[6px] px-2.5 py-[4px] rounded-lg text-[11px] font-medium
-                            transition-all duration-200 cursor-pointer border-[0.5px]
-                            ${on ? 'border-current' : 'border-[var(--border)] text-[var(--text-faint)]'}`}
-                style={on ? { color: c, background: c + '0F' } : {}}>
-                <span className="w-[6px] h-[6px] rounded-full shrink-0" style={{ background: on ? c : 'var(--text-faint)' }} />
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium
+                            transition-all duration-200 cursor-pointer
+                            ${on
+                              ? 'border border-current'
+                              : 'border border-[rgba(255,255,255,0.08)] text-[var(--text-faint)]'}`}
+                style={on ? { color: c, background: c + '12', borderColor: c + '40' } : { background: 'transparent' }}>
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: on ? c : 'var(--text-faint)' }} />
                 {op}
               </button>
             );
@@ -103,45 +106,41 @@ export default function CellFilters({ erbs, onFilter, filterOptions }: Props) {
         </div>
       </div>
 
-      {/* Secondary: Advanced filters (collapsible) */}
-      <div className="px-5 py-[18px] border-b border-[var(--border)]">
+      {/* Advanced */}
+      <div className="px-4 pt-3.5 pb-4 border-b border-[var(--border)]">
         <button
           type="button"
           onClick={() => setAdvOpen(!advOpen)}
-          className="flex items-center justify-between w-full cursor-pointer"
+          className="flex items-center justify-between w-full bg-transparent border-none p-0 cursor-pointer"
         >
           <span className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)]">
             Filtros avançados
           </span>
-          <svg
-            width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="var(--text-faint)"
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="var(--text-faint)"
             strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-            className={`transition-transform duration-200 ${advOpen ? 'rotate-180' : ''}`}
-          >
+            className={`transition-transform duration-200 ${advOpen ? 'rotate-180' : ''}`}>
             <path d="M1 1l4 4 4-4" />
           </svg>
         </button>
 
         {advOpen && (
-          <div className="flex flex-col gap-4 mt-5">
+          <div className="flex flex-col gap-4 mt-4">
             <MultiSelect label="Estado (UF)" placeholder="Todos os estados" options={filterOptions.ufs}
               selected={f.ufs} onChange={ufs => upd({ ufs })} />
 
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor={`cc-${uid}`} className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)]">Cidade</label>
+            <div>
+              <label htmlFor={`cc-${uid}`} className="block text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-1.5">Cidade</label>
               <input id={`cc-${uid}`} value={f.cidade} onChange={e => upd({ cidade: e.target.value })}
-                placeholder="Buscar município..."
-                className="w-full h-[32px] px-3 rounded-lg text-[12px] bg-transparent border-[0.5px] border-[var(--border-hover)]
-                           text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none
-                           focus:border-[var(--accent)] focus:bg-[var(--bg-surface2)] transition-all duration-200" />
+                placeholder="Buscar município..." className={inputStyle} />
             </div>
 
             <MultiSelect label="Faixa (MHz)" placeholder="Todas" options={filterOptions.faixas}
               selected={f.faixas} onChange={faixas => upd({ faixas })} searchable={false} />
 
-            <button onClick={reset}
-              className="text-[11px] font-medium text-[var(--accent)] hover:opacity-70 cursor-pointer transition-opacity py-1.5 text-center
-                         border-[0.5px] border-[var(--border)] rounded-lg hover:border-[var(--accent)]">
+            <button onClick={reset} type="button"
+              className="w-full h-8 rounded-md text-[11px] font-medium text-[var(--accent)]
+                         bg-transparent border border-[rgba(255,255,255,0.08)]
+                         hover:border-[var(--accent)] cursor-pointer transition-colors duration-200">
               Limpar filtros
             </button>
           </div>
