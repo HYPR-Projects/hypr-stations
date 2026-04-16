@@ -57,7 +57,7 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
       <div className="flex gap-1.5 p-2.5" style={{ borderBottom: `0.5px solid ${border}` }}>
         {TECH_OPTS.map(t => (
           <button key={t.value} onClick={() => handleTechChange(t.value)}
-            className="flex-1 py-[6px] rounded-[7px] text-[11px] font-semibold cursor-pointer transition-all duration-150 border-0 outline-none"
+            className="flex-1 py-[6px] rounded-[7px] text-[11px] font-semibold cursor-pointer transition-all duration-150 border-0 outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
             style={techFilter === t.value
               ? { background: '#4db8d4', color: dark ? '#000' : '#fff' }
               : { background: pillBg, color: textSecondary }}>
@@ -83,7 +83,7 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
           const isFocused = focusOp === o.op;
           return (
             <button key={o.op} onClick={() => handleFocusOp(o.op)}
-              className="flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] cursor-pointer transition-all duration-150 w-full text-left border-0 outline-none"
+              className="flex items-center gap-2.5 px-2.5 py-[7px] rounded-[8px] cursor-pointer transition-all duration-150 w-full text-left border-0 outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]"
               style={isFocused
                 ? { background: `${color}15`, border: `0.5px solid ${color}30` }
                 : { background: 'transparent', border: '0.5px solid transparent' }}

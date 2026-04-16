@@ -30,7 +30,7 @@ export default function ViewModeSelector({ mode, onChange }: Props) {
         return (
           <button key={m.value} role="radio" aria-checked={on} onClick={() => onChange(m.value)}
             className={`flex items-center gap-2 px-4 py-[7px] rounded-[8px] text-[12px] font-medium
-                        transition-all duration-200 cursor-pointer border-0 outline-none
+                        transition-all duration-200 cursor-pointer border-0 outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)]
                         ${on
                           ? 'bg-[var(--accent)] text-[var(--on-accent)] shadow-[0_1px_3px_rgba(0,0,0,0.2)]'
                           : 'bg-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--hover-bg)]'}`}>

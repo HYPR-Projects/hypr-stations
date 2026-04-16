@@ -35,7 +35,7 @@ export default function MultiSelect({ label, placeholder, options, selected, onC
           boxSizing: 'border-box',
         }}>
         {selected.size === 0
-          ? <span className="text-[var(--text-faint)] truncate">{placeholder}</span>
+          ? <span className="text-[var(--text-muted)] truncate">{placeholder}</span>
           : <div className="flex flex-wrap gap-1 flex-1 overflow-hidden">
               {[...selected].slice(0, 3).map(v => (
                 <span key={v} className="inline-flex items-center gap-0.5 px-2 py-0 rounded text-[11px] font-medium bg-[var(--accent-muted)] text-[var(--accent)]">
@@ -43,7 +43,7 @@ export default function MultiSelect({ label, placeholder, options, selected, onC
                   <span role="button" tabIndex={0} aria-label={`Remover ${v}`} className="cursor-pointer opacity-50 hover:opacity-100 ml-0.5"
                     onClick={e => { e.stopPropagation(); toggle(v); }} onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); toggle(v); } }}>×</span>
                 </span>))}
-              {selected.size > 3 && <span className="text-[11px] text-[var(--text-faint)]">+{selected.size - 3}</span>}
+              {selected.size > 3 && <span className="text-[11px] text-[var(--text-muted)]">+{selected.size - 3}</span>}
             </div>}
         <svg width="8" height="5" viewBox="0 0 8 5" aria-hidden="true" className={`shrink-0 ml-auto text-[var(--text-faint)] transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
           <path d="M0 0l4 5 4-5z" fill="currentColor" /></svg>
@@ -56,7 +56,7 @@ export default function MultiSelect({ label, placeholder, options, selected, onC
               <div className="p-2 border-b border-[var(--border)]">
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar..."
                   aria-label={`Buscar em ${label}`} autoFocus
-                  className="w-full px-2.5 py-1.5 rounded text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition-colors"
+                  className="w-full px-2.5 py-1.5 rounded text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] transition-colors"
                   style={{ background: 'var(--input-bg)', border: '1px solid var(--input-border-subtle)' }} />
               </div>)}
             <div role="listbox" aria-labelledby={lid} className="max-h-44 overflow-y-auto">

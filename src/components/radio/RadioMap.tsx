@@ -113,8 +113,8 @@ export default function RadioMap() {
       <div style="padding:18px 20px 0">
         <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px">
           <span style="font-weight:700;font-size:20px;color:${c}">${s.frequencia}</span>
-          <span style="font-size:11px;color:var(--text-faint)">${u}</span>
-          <span style="font-size:11px;color:var(--text-faint);margin-left:auto">${s._fantasy || s.tipo}</span>
+          <span style="font-size:11px;color:var(--text-muted)">${u}</span>
+          <span style="font-size:11px;color:var(--text-muted);margin-left:auto">${s._fantasy || s.tipo}</span>
         </div>
         <div style="font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:10px">${s.municipio} — ${s.uf}</div>
       </div>
@@ -130,7 +130,7 @@ export default function RadioMap() {
         <div style="font-size:11px;letter-spacing:0.02em;color:var(--text-muted)">Audiência estimada</div>
         <div style="font-weight:700;font-size:20px;color:var(--accent);margin-top:5px;letter-spacing:-0.01em">${formatAudience(aud)} devices</div>
       </div>` : ''}
-      <div style="font-size:11px;color:var(--text-faint);text-align:center;margin:8px 20px 14px;opacity:0.5">Modelo HYPR: alcance × densidade × penetração × campanha 30d</div>
+      <div style="font-size:11px;color:var(--text-muted);text-align:center;margin:8px 20px 14px;opacity:0.5">Modelo HYPR: alcance × densidade × penetração × campanha 30d</div>
     </div>`;
     const popup = new maplibregl.Popup({ closeButton: true, closeOnClick: true, maxWidth: '340px', offset: 10 })
       .setLngLat(coords).setHTML(html).addTo(mapRef.current!);
@@ -200,7 +200,7 @@ export default function RadioMap() {
           <div className="flex items-center gap-2 text-[12px] text-[var(--text-primary)]">
             <span className="w-[7px] h-[7px] rounded-full" style={{ background: RADIO_COLORS.am }} aria-hidden="true" /> AM/OM — {(filtered.length - fmN).toLocaleString('pt-BR')}
           </div>
-          <div className="text-[11px] text-[var(--text-faint)] mt-2">Anatel/SRD · 2026</div>
+          <div className="text-[11px] text-[var(--text-muted)] mt-2">Anatel/SRD · 2026</div>
         </div>
 
         {/* Mobile FAB */}

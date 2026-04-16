@@ -93,7 +93,8 @@ export default function CheckoutModal({ open, onClose, stations }: CheckoutModal
     <div className="fixed inset-0 z-[3500] flex items-start justify-center p-5 overflow-y-auto
                     bg-[var(--overlay)]" style={{ backdropFilter: 'blur(4px)' }}
          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-[var(--bg-surface)] border-[0.5px] border-[var(--border)] rounded-[14px]
+      <div role="dialog" aria-modal="true" aria-labelledby="checkout-title"
+           className="bg-[var(--bg-surface)] border-[0.5px] border-[var(--border)] rounded-[14px]
                       w-full max-w-[500px] mt-10 p-7 relative" onClick={e => e.stopPropagation()}>
 
         {/* Close */}
@@ -106,7 +107,7 @@ export default function CheckoutModal({ open, onClose, stations }: CheckoutModal
 
         {/* KPIs */}
         <div className="text-center mb-5">
-          <h3 className="font-heading text-[18px] font-semibold text-[var(--text-primary)]">Montar plano</h3>
+          <h2 id="checkout-title" className="font-heading text-[18px] font-semibold text-[var(--text-primary)]">Montar plano</h2>
           <p className="text-[12px] text-[var(--text-muted)] mt-1.5">Revise a seleção e envie via WhatsApp</p>
         </div>
 

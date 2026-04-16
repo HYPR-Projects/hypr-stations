@@ -105,7 +105,7 @@ export default function CellFilters({ erbs, onFilter, filterOptions }: Props) {
         <button
           type="button"
           onClick={() => setAdvOpen(!advOpen)}
-          className="flex items-center justify-between w-full cursor-pointer outline-none bg-transparent border-none p-0 font-[inherit]"
+          className="flex items-center justify-between w-full cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded bg-transparent border-none p-0 font-[inherit]"
         >
           <span className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)]">
             Filtros avançados

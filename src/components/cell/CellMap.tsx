@@ -459,7 +459,7 @@ export default function CellMap() {
                 background: 'linear-gradient(to right, rgba(33,102,172,0.4), rgba(51,151,185,0.6), rgba(102,194,165,0.7), rgba(237,217,0,0.8), rgba(245,39,43,0.85))'
               }} />
             </div>
-            <div className="flex justify-between text-[11px] text-[var(--text-faint)]">
+            <div className="flex justify-between text-[11px] text-[var(--text-muted)]">
               <span>Baixa</span><span>Alta</span>
             </div>
           </>) : (<>
@@ -472,7 +472,7 @@ export default function CellMap() {
               </div>
             ))}
           </>)}
-          <div className="text-[11px] text-[var(--text-faint)] mt-2">Anatel · Fev/2026</div>
+          <div className="text-[11px] text-[var(--text-muted)] mt-2">Anatel · Fev/2026</div>
         </div>
         )}
 
