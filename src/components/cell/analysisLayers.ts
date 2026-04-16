@@ -19,15 +19,24 @@ export function addHeatmapLayer(map: MLMap, erbs: ERB[]) {
   map.addLayer({
     id: HEATMAP_LAYER, type: 'heatmap', source: HEATMAP_SOURCE,
     paint: {
-      'heatmap-weight': ['interpolate', ['linear'], ['zoom'], 0, 0.3, 9, 1],
-      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 9, 2],
+      // Low weight at low zoom to avoid saturation with 109K points
+      'heatmap-weight': ['interpolate', ['linear'], ['zoom'], 0, 0.08, 6, 0.3, 10, 0.7, 14, 1],
+      // Gentle intensity — let density do the work
+      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.2, 5, 0.4, 8, 0.8, 12, 1.5],
       'heatmap-color': [
         'interpolate', ['linear'], ['heatmap-density'],
-        0, 'rgba(0,0,0,0)', 0.1, 'rgba(33,102,172,0.4)', 0.3, 'rgba(51,151,185,0.6)',
-        0.5, 'rgba(102,194,165,0.7)', 0.7, 'rgba(237,217,0,0.8)', 0.9, 'rgba(245,39,43,0.85)', 1, 'rgba(180,4,38,0.9)',
+        0, 'rgba(0,0,0,0)',
+        0.05, 'rgba(33,102,172,0.15)',
+        0.15, 'rgba(33,102,172,0.35)',
+        0.3, 'rgba(51,151,185,0.5)',
+        0.5, 'rgba(102,194,165,0.6)',
+        0.7, 'rgba(237,217,0,0.7)',
+        0.85, 'rgba(245,100,43,0.8)',
+        1, 'rgba(220,30,38,0.85)',
       ],
-      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 8, 4, 15, 7, 25, 10, 40, 14, 60],
-      'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.8, 15, 0.3],
+      // Tight radius at country zoom, expanding at city zoom
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 2, 4, 4, 6, 8, 8, 16, 10, 30, 13, 50],
+      'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.85, 16, 0.2],
     },
   });
 }
