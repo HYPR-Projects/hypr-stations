@@ -1,6 +1,8 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Header from '../components/shared/Header';
+import HubSearch from '../components/hub/HubSearch';
+import HubStats from '../components/hub/HubStats';
 import MapCard from '../components/hub/MapCard';
 import { MAPS } from '../lib/constants';
 ---
@@ -9,34 +11,58 @@ import { MAPS } from '../lib/constants';
   <div class="min-h-screen flex flex-col">
     <Header client:load currentPage="/" />
 
-    <main class="flex-1 flex flex-col items-center justify-center px-6 py-20">
-      <div class="text-center mb-16 max-w-lg">
-        <h1 class="font-heading text-2xl md:text-[28px] font-bold text-[var(--text-primary)] mb-3 leading-tight">
-          O que você quer explorar?
-        </h1>
-        <p class="text-xs text-[var(--text-muted)] leading-relaxed">
-          Escolha um mapa de cobertura para visualizar estações, filtrar por região e montar planos de mídia.
+    <main class="flex-1 flex flex-col px-8 md:px-12">
+      <div class="w-full max-w-[860px] mx-auto py-12 md:py-14">
+
+        {/* Hero */}
+        <div class="text-center mb-11" style="animation: fadeUp 0.55s ease both">
+          <h1 class="font-heading text-[26px] font-semibold text-[var(--text-primary)] mb-2.5 leading-[1.35] tracking-[-0.01em]">
+            Explore a cobertura de <span class="text-[var(--accent)]">mídia</span> no Brasil
+          </h1>
+          <p class="text-[14px] text-[var(--text-muted)] leading-[1.65] max-w-[440px] mx-auto mb-7">
+            Mapas interativos com dados da Anatel. Filtre estações, estime audiências e monte planos de mídia.
+          </p>
+
+          {/* Search */}
+          <div style="animation: fadeUp 0.55s ease 0.08s both">
+            <HubSearch client:load />
+          </div>
+
+          {/* Status */}
+          <div class="flex items-center justify-center gap-2 mt-5" style="animation: fadeUp 0.55s ease 0.12s both">
+            <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-green-400)] animate-[dotPulse_2.5s_ease_infinite]"></span>
+            <span class="text-[12px] text-[var(--text-muted)]">Dados atualizados — Abril 2026</span>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div class="mb-9">
+          <HubStats client:load />
+        </div>
+
+        {/* Map cards */}
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {Object.values(MAPS).map((map, i) => (
+            <div style={`animation: fadeUp 0.5s ease ${0.22 + i * 0.05}s both`}>
+              <MapCard
+                client:load
+                name={map.name}
+                subtitle={map.subtitle}
+                description={map.description}
+                icon={map.icon}
+                href={map.href}
+                status={map.status}
+                stats={map.stats}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <p class="mt-10 text-[11px] text-[var(--text-faint)] text-center" style="animation: fadeIn 0.5s ease 0.4s both">
+          Dados públicos Anatel · Uso interno HYPR
         </p>
       </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-5 w-full max-w-4xl">
-        {Object.values(MAPS).map((map) => (
-          <MapCard
-            client:load
-            name={map.name}
-            subtitle={map.subtitle}
-            description={map.description}
-            icon={map.icon}
-            href={map.href}
-            status={map.status}
-            stats={map.stats}
-          />
-        ))}
-      </div>
-
-      <p class="mt-16 text-micro text-[var(--text-muted)] text-center">
-        Dados públicos Anatel · Uso interno HYPR
-      </p>
     </main>
   </div>
 </BaseLayout>

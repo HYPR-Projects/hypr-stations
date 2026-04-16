@@ -8,6 +8,7 @@ interface MapCardProps {
   href: string;
   status: MapStatus;
   stats: { stations: string; types: string; source: string };
+  accentColor?: string;
 }
 
 const STATUS_LABELS: Record<MapStatus, string> = {
@@ -16,15 +17,48 @@ const STATUS_LABELS: Record<MapStatus, string> = {
   'planned': 'Planejado',
 };
 
+const ACCENT_MAP: Record<string, string> = {
+  radio: 'var(--accent)',
+  cell: '#5ba3e6',
+  tv: '#d4c74a',
+};
+
 function MapIcon({ icon }: { icon: string }) {
-  const props = { className: "w-6 h-6", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, 'aria-hidden': true as const };
+  const props = {
+    className: 'w-5 h-5',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.5,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true as const,
+  };
   switch (icon) {
     case 'radio':
-      return (<svg {...props}><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" /><path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.4" /><circle cx="12" cy="12" r="2" /><path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.4" /><path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" /></svg>);
+      return (
+        <svg {...props}>
+          <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+          <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.4" />
+          <circle cx="12" cy="12" r="2" />
+          <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.4" />
+          <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" />
+        </svg>
+      );
     case 'signal':
-      return (<svg {...props}><path d="M2 20h.01" /><path d="M7 20v-4" /><path d="M12 20v-8" /><path d="M17 20V8" /><path d="M22 4v16" /></svg>);
+      return (
+        <svg {...props}>
+          <path d="M2 20h.01" /><path d="M7 20v-4" /><path d="M12 20v-8" />
+          <path d="M17 20V8" /><path d="M22 4v16" />
+        </svg>
+      );
     case 'tv':
-      return (<svg {...props}><rect x="2" y="7" width="20" height="15" rx="2" ry="2" /><polyline points="17 2 12 7 7 2" /></svg>);
+      return (
+        <svg {...props}>
+          <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
+          <polyline points="17 2 12 7 7 2" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -32,79 +66,79 @@ function MapIcon({ icon }: { icon: string }) {
 
 export default function MapCard({ name, subtitle, description, icon, href, status, stats }: MapCardProps) {
   const isActive = status === 'active';
+  const accent = ACCENT_MAP[icon] || 'var(--accent)';
 
   const content = (
-    <div className={`group flex flex-col h-full rounded-xl border transition-all duration-300
-                     ${isActive
-                       ? 'border-[var(--border)] bg-[var(--bg-surface)] hover:border-[var(--accent)] hover:shadow-[var(--shadow-card-hover)] cursor-pointer'
-                       : 'border-[var(--border)] bg-[var(--bg-surface)] opacity-45 cursor-default'
-                     }`}>
+    <div
+      className={`group relative flex flex-col h-full rounded-[14px] border-[0.5px] overflow-hidden
+                  transition-all duration-300
+                  ${isActive
+                    ? 'border-[var(--border)] bg-[var(--bg-surface)] hover:border-[rgba(255,255,255,0.10)] hover:translate-y-[-2px] cursor-pointer'
+                    : 'border-[var(--border)] bg-[var(--bg-surface)] opacity-25 cursor-default'
+                  }`}
+    >
+      {/* Accent line (visible on hover) */}
+      <div
+        className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        style={{ background: accent }}
+      />
 
-      {/* Main content area */}
-      <div className="flex flex-col flex-1 p-6 pb-5">
-        {/* Top: icon + badge */}
-        <div className="flex items-start justify-between mb-6">
-          <div className={`w-11 h-11 rounded-xl flex items-center justify-center
-                           transition-colors duration-300
-                           ${isActive
-                             ? 'bg-[var(--accent-muted)] text-[var(--accent)] group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)]'
-                             : 'bg-[var(--bg-surface2)] text-[var(--text-muted)]'
-                           }`}>
+      {/* Body */}
+      <div className="flex flex-col flex-1 px-[26px] pt-7 pb-[22px]">
+        {/* Icon + badge */}
+        <div className="flex items-start justify-between mb-5">
+          <div
+            className="w-10 h-10 rounded-[11px] flex items-center justify-center
+                       transition-transform duration-300 group-hover:scale-[1.06]"
+            style={{
+              background: accent + '14',
+              color: accent,
+            }}
+          >
             <MapIcon icon={icon} />
           </div>
           {!isActive && (
-            <span className="text-micro font-semibold uppercase tracking-wider
-                             px-2.5 py-1 rounded-lg
-                             bg-[var(--accent-muted)] text-[var(--accent)]">
+            <span className="text-[11px] font-medium px-[11px] py-1 rounded-lg bg-[var(--accent-muted)] text-[var(--accent)]">
               {STATUS_LABELS[status]}
             </span>
           )}
         </div>
 
         {/* Title */}
-        <h2 className="font-heading text-[15px] font-bold text-[var(--text-primary)] mb-1">
+        <h2 className="font-heading text-[16px] font-semibold text-[var(--text-primary)] mb-1">
           {name}
         </h2>
 
         {/* Subtitle */}
-        <p className="text-micro font-medium uppercase tracking-wider text-[var(--text-muted)] mb-4">
+        <p className="text-[12px] text-[var(--text-muted)] mb-3.5 tracking-[0.02em]">
           {subtitle}
         </p>
 
         {/* Description */}
-        <p className="text-xs text-[var(--text-secondary)] leading-relaxed flex-1">
+        <p className="text-[13px] text-[var(--text-secondary)] leading-[1.6] flex-1">
           {description}
         </p>
       </div>
 
-      {/* Stats footer — separated from main content */}
-      <div className="px-6 pb-6 pt-0">
-        <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
-          <div className="flex gap-8">
-            {Object.entries(stats).map(([key, val]) => (
-              <div key={key} className="flex flex-col gap-0.5">
-                <span className={`text-xs font-bold leading-none ${isActive ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`}>
-                  {val}
-                </span>
-                <span className="text-micro uppercase tracking-wider text-[var(--text-muted)] leading-none">
-                  {key === 'stations' ? 'Estações' : key === 'types' ? 'Tipos' : 'Fonte'}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {isActive && (
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ml-3
-                            bg-[var(--bg-surface2)] text-[var(--text-muted)]
-                            group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)]
-                            transition-all duration-300"
-                 aria-hidden="true">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
-              </svg>
+      {/* Stats footer */}
+      <div className="flex border-t border-[var(--border)]">
+        {Object.entries(stats).map(([key, val], i) => (
+          <div
+            key={key}
+            className={`flex-1 py-[18px] text-center
+                       ${i < Object.keys(stats).length - 1 ? 'border-r border-[var(--border)]' : ''}`}
+          >
+            <div
+              className="text-[14px] font-semibold leading-none mb-[3px]"
+              style={{ color: isActive ? accent : 'var(--text-muted)' }}
+            >
+              {val}
             </div>
-          )}
-        </div>
+            <div className="text-[11px] text-[var(--text-muted)]">
+              {key === 'stations' ? 'Estações' : key === 'types' ? 'Tipos' : 'Fonte'}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
