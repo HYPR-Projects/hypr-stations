@@ -87,7 +87,7 @@ export default function RadioFilters({ stations, onFilter, allUFs, allClasses, a
         </button>
 
         {advOpen && (
-          <div className="flex flex-col gap-4 mt-4 min-w-0">
+          <div className="flex flex-col gap-4 mt-4 min-w-0 overflow-hidden">
             <div className="min-w-0">
               <label htmlFor={`c-${uid}`} className="block text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-1.5">Cidade</label>
               <input id={`c-${uid}`} value={f.cidade} onChange={e => upd({ cidade: e.target.value })}

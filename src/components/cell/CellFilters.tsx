@@ -118,7 +118,7 @@ export default function CellFilters({ erbs, onFilter, filterOptions }: Props) {
         </button>
 
         {advOpen && (
-          <div className="flex flex-col gap-4 mt-4 min-w-0">
+          <div className="flex flex-col gap-4 mt-4 min-w-0 overflow-hidden">
             <MultiSelect label="Estado (UF)" placeholder="Todos os estados" options={filterOptions.ufs}
               selected={f.ufs} onChange={ufs => upd({ ufs })} />
 
