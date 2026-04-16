@@ -12,7 +12,7 @@ import DominancePanel from './DominancePanel';
 import { fetchERBs, getFilterOptions, type ERB } from './cellData';
 import { OPERADORA_COLORS, TECH_COLORS } from '../../lib/constants';
 import { formatAudience, estimateCellAudience, estimateCellRadius } from '../../lib/audience';
-import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, clearDominanceCache } from './analysisLayers';
+import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, forceRedrawDominance, loadDominanceData, type DominanceOptions } from './analysisLayers';
 import { updateCoverageCircles, removeCoverageCircles } from './coverageLayer';
 
 // ─── CSV export ──────────────────────────────────
@@ -54,18 +54,24 @@ export default function CellMap() {
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const viewModeRef = useRef<string>('pins');
   const coverageRef = useRef(false);
-  // Ref to always have current filtered data (avoids stale closures)
   const filteredRef = useRef<ERB[]>([]);
   filteredRef.current = filtered;
+  const domOptsRef = useRef<DominanceOptions>({});
+  const [domOpts, setDomOpts] = useState<DominanceOptions>({});
+  const [mapZoom, setMapZoom] = useState(4.2);
 
   // Load data
   useEffect(() => {
-    fetchERBs((n) => setLoadProgress(n)).then(data => {
+    // Load ERBs and dominance data in parallel
+    Promise.all([
+      fetchERBs((n) => setLoadProgress(n)),
+      loadDominanceData(),
+    ]).then(([data]) => {
       setAllErbs(data);
       setFiltered(data);
       setLoading(false);
     }).catch(err => {
-      console.error('Failed to load ERBs:', err);
+      console.error('Failed to load data:', err);
       setLoading(false);
     });
   }, []);
@@ -102,7 +108,7 @@ export default function CellMap() {
       return;
     }
     if (mode === 'dominance') {
-      addDominanceLayer(map, data);
+      addDominanceLayer(map, domOptsRef.current);
       return;
     }
 
@@ -192,11 +198,23 @@ export default function CellMap() {
   // ─── View mode switching ────────────────────────
 
   const handleViewModeChange = useCallback((mode: string) => {
-    if (viewModeRef.current === 'dominance' && mode !== 'dominance') clearDominanceCache();
     viewModeRef.current = mode;
     setViewMode(mode);
+    if (mode !== 'dominance') {
+      domOptsRef.current = {};
+      setDomOpts({});
+    }
     syncLayers();
   }, [syncLayers]);
+
+  const handleDomOptsChange = useCallback((opts: DominanceOptions) => {
+    domOptsRef.current = opts;
+    setDomOpts(opts);
+    const map = mapRef.current;
+    if (map && viewModeRef.current === 'dominance') {
+      forceRedrawDominance(map, opts);
+    }
+  }, []);
 
   const toggleCoverage = useCallback(() => {
     const next = !coverageRef.current;
@@ -248,10 +266,11 @@ export default function CellMap() {
 
     map.on('zoomend', () => {
       const mode = viewModeRef.current;
+      setMapZoom(map.getZoom());
       if (mode === 'pins' && coverageRef.current) {
         updateCoverageCircles(map, filteredRef.current, true);
       } else if (mode === 'dominance') {
-        updateDominanceForZoom(map, filteredRef.current);
+        updateDominanceForZoom(map, domOptsRef.current);
       }
     });
 
@@ -445,11 +464,7 @@ export default function CellMap() {
 
         {/* Dominance stats panel */}
         {viewMode === 'dominance' && !loading && (
-          <DominancePanel erbs={filtered} resolution={mapRef.current ? (
-            mapRef.current.getZoom() < 4 ? 2 : mapRef.current.getZoom() < 5 ? 3 :
-            mapRef.current.getZoom() < 7 ? 4 : mapRef.current.getZoom() < 9 ? 5 :
-            mapRef.current.getZoom() < 11 ? 6 : 7
-          ) : 4} />
+          <DominancePanel zoom={mapZoom} onOptionsChange={handleDomOptsChange} />
         )}
 
         {/* Legend */}
