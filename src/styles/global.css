@@ -249,23 +249,27 @@
   z-index: 100;
 }
 
-/* Nuclear override: kill ALL maplibre popup wrapper backgrounds/borders */
 .maplibregl-popup-content,
 .maplibregl-popup-content * {
   border-color: transparent !important;
 }
 
 .maplibregl-popup-content {
-  background: var(--overlay-panel) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  border: 0.5px solid var(--border-hover) !important;
+  background: rgba(22, 29, 36, 0.97) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: 16px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 0 0 0.5px rgba(255,255,255,0.04) !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5), inset 0 0.5px 0 rgba(255,255,255,0.04) !important;
   padding: 0 !important;
   overflow: hidden !important;
-  color: var(--text-primary) !important;
+  color: #e8ecf0 !important;
   max-width: 340px !important;
+}
+
+html.light .maplibregl-popup-content {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border: 0.5px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 0.5px 0 rgba(255,255,255,0.5) !important;
+  color: #1a2530 !important;
 }
 
 .maplibregl-popup-anchor-top-left .maplibregl-popup-content,
@@ -279,7 +283,6 @@
   border-radius: 16px !important;
 }
 
-/* Kill the tip/arrow completely */
 .maplibregl-popup-tip,
 .maplibregl-popup .maplibregl-popup-tip {
   display: none !important;
@@ -292,7 +295,7 @@
 }
 
 .maplibregl-popup-close-button {
-  color: var(--text-muted) !important;
+  color: rgba(255,255,255,0.4) !important;
   top: 14px !important;
   right: 14px !important;
   font-size: 16px !important;
@@ -301,7 +304,7 @@
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: var(--hover-bg) !important;
+  background: rgba(255,255,255,0.06) !important;
   border: none !important;
   border-radius: 8px !important;
   cursor: pointer !important;
@@ -309,8 +312,16 @@
   line-height: 1 !important;
 }
 .maplibregl-popup-close-button:hover {
-  color: var(--text-primary) !important;
-  background: var(--bg-surface3) !important;
+  color: rgba(255,255,255,0.8) !important;
+  background: rgba(255,255,255,0.1) !important;
+}
+html.light .maplibregl-popup-close-button {
+  color: rgba(0,0,0,0.3) !important;
+  background: rgba(0,0,0,0.04) !important;
+}
+html.light .maplibregl-popup-close-button:hover {
+  color: rgba(0,0,0,0.7) !important;
+  background: rgba(0,0,0,0.08) !important;
 }
 
 .maplibregl-ctrl-group {
