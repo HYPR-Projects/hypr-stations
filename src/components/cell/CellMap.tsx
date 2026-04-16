@@ -12,7 +12,7 @@ import DominancePanel from './DominancePanel';
 import { fetchERBs, getFilterOptions, type ERB } from './cellData';
 import { OPERADORA_COLORS, TECH_COLORS } from '../../lib/constants';
 import { formatAudience, estimateCellAudience, estimateCellRadius } from '../../lib/audience';
-import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom } from './analysisLayers';
+import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, clearDominanceCache } from './analysisLayers';
 import { updateCoverageCircles, removeCoverageCircles } from './coverageLayer';
 
 // ─── CSV export ──────────────────────────────────
@@ -185,6 +185,7 @@ export default function CellMap() {
   // ─── View mode switching ────────────────────────
 
   const handleViewModeChange = useCallback((mode: string) => {
+    if (viewModeRef.current === 'dominance' && mode !== 'dominance') clearDominanceCache();
     viewModeRef.current = mode;
     setViewMode(mode);
     syncLayers();

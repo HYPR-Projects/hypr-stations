@@ -27,19 +27,8 @@ export function addHeatmapLayer(map: MLMap, erbs: ERB[]) {
     type: 'heatmap',
     source: HEATMAP_SOURCE,
     paint: {
-      // Increase weight as zoom level increases
-      'heatmap-weight': [
-        'interpolate', ['linear'], ['zoom'],
-        0, 0.3,
-        9, 1,
-      ],
-      // Increase intensity as zoom level increases
-      'heatmap-intensity': [
-        'interpolate', ['linear'], ['zoom'],
-        0, 0.5,
-        9, 2,
-      ],
-      // Color ramp from transparent → blue → teal → yellow → red
+      'heatmap-weight': ['interpolate', ['linear'], ['zoom'], 0, 0.3, 9, 1],
+      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 9, 2],
       'heatmap-color': [
         'interpolate', ['linear'], ['heatmap-density'],
         0, 'rgba(0,0,0,0)',
@@ -50,21 +39,8 @@ export function addHeatmapLayer(map: MLMap, erbs: ERB[]) {
         0.9, 'rgba(245,39,43,0.85)',
         1, 'rgba(180,4,38,0.9)',
       ],
-      // Radius changes with zoom
-      'heatmap-radius': [
-        'interpolate', ['linear'], ['zoom'],
-        0, 8,
-        4, 15,
-        7, 25,
-        10, 40,
-        14, 60,
-      ],
-      // Transition opacity so heatmap fades at high zoom
-      'heatmap-opacity': [
-        'interpolate', ['linear'], ['zoom'],
-        12, 0.8,
-        15, 0.3,
-      ],
+      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 8, 4, 15, 7, 25, 10, 40, 14, 60],
+      'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.8, 15, 0.3],
     },
   });
 }
@@ -91,14 +67,12 @@ interface HexData {
 }
 
 function getH3Resolution(zoom: number): number {
-  // Map zoom levels to appropriate H3 resolutions
   if (zoom < 4) return 2;
-  if (zoom < 5) return 3;
-  if (zoom < 7) return 4;
-  if (zoom < 9) return 5;
-  if (zoom < 11) return 6;
-  if (zoom < 13) return 7;
-  return 8;
+  if (zoom < 6) return 3;
+  if (zoom < 8) return 4;
+  if (zoom < 10) return 5;
+  if (zoom < 12) return 6;
+  return 7;
 }
 
 export function computeDominance(erbs: ERB[], resolution: number): HexData[] {
@@ -111,9 +85,7 @@ export function computeDominance(erbs: ERB[], resolution: number): HexData[] {
       const counts = hexMap.get(h3) || {};
       counts[e.prestadora_norm] = (counts[e.prestadora_norm] || 0) + 1;
       hexMap.set(h3, counts);
-    } catch {
-      // h3-js can throw for invalid coords
-    }
+    } catch { /* invalid coords */ }
   }
 
   const result: HexData[] = [];
@@ -125,14 +97,7 @@ export function computeDominance(erbs: ERB[], resolution: number): HexData[] {
       total += n;
       if (n > dominantCount) { dominant = op; dominantCount = n; }
     }
-    result.push({
-      h3Index,
-      counts,
-      total,
-      dominant,
-      dominantCount,
-      dominantPct: total > 0 ? dominantCount / total : 0,
-    });
+    result.push({ h3Index, counts, total, dominant, dominantCount, dominantPct: total > 0 ? dominantCount / total : 0 });
   }
 
   return result;
@@ -140,44 +105,51 @@ export function computeDominance(erbs: ERB[], resolution: number): HexData[] {
 
 function h3ToPolygonCoords(h3Index: string): number[][] {
   const boundary = cellToBoundary(h3Index);
-  // h3-js returns [lat, lng], GeoJSON needs [lng, lat]
   const coords = boundary.map(([lat, lng]) => [lng, lat]);
-  // Close the ring
   coords.push(coords[0]);
   return coords;
 }
+
+// Cache to avoid recomputing on every zoom
+let _domCache: { resolution: number; geojson: GeoJSON.FeatureCollection } | null = null;
 
 export function addDominanceLayer(map: MLMap, erbs: ERB[]) {
   removeDominanceLayer(map);
 
   const zoom = map.getZoom();
   const resolution = getH3Resolution(zoom);
-  const hexData = computeDominance(erbs, resolution);
 
-  if (hexData.length === 0) return;
+  let geojson: GeoJSON.FeatureCollection;
 
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: hexData.map(h => {
-      const coords = h3ToPolygonCoords(h.h3Index);
-      const color = OPERADORA_COLORS[h.dominant] || OPERADORA_COLORS['Outras'];
-      return {
-        type: 'Feature' as const,
-        geometry: { type: 'Polygon' as const, coordinates: [coords] },
-        properties: {
-          dominant: h.dominant,
-          dominantPct: Math.round(h.dominantPct * 100),
-          total: h.total,
-          color,
-          ...h.counts,
-        },
-      };
-    }),
-  };
+  if (_domCache && _domCache.resolution === resolution) {
+    geojson = _domCache.geojson;
+  } else {
+    const hexData = computeDominance(erbs, resolution);
+    if (hexData.length === 0) return;
+
+    geojson = {
+      type: 'FeatureCollection',
+      features: hexData.map(h => {
+        const coords = h3ToPolygonCoords(h.h3Index);
+        const color = OPERADORA_COLORS[h.dominant] || OPERADORA_COLORS['Outras'];
+        return {
+          type: 'Feature' as const,
+          geometry: { type: 'Polygon' as const, coordinates: [coords] },
+          properties: {
+            dominant: h.dominant,
+            dominantPct: Math.round(h.dominantPct * 100),
+            total: h.total,
+            color,
+            ...h.counts,
+          },
+        };
+      }),
+    };
+    _domCache = { resolution, geojson };
+  }
 
   map.addSource(DOMINANCE_SOURCE, { type: 'geojson', data: geojson });
 
-  // Fill layer
   map.addLayer({
     id: DOMINANCE_FILL,
     type: 'fill',
@@ -186,27 +158,22 @@ export function addDominanceLayer(map: MLMap, erbs: ERB[]) {
       'fill-color': ['get', 'color'],
       'fill-opacity': [
         'interpolate', ['linear'], ['get', 'dominantPct'],
-        50, 0.15,
-        70, 0.3,
-        90, 0.45,
-        100, 0.55,
+        50, 0.15, 70, 0.3, 90, 0.45, 100, 0.55,
       ],
     },
   });
 
-  // Border
   map.addLayer({
     id: DOMINANCE_LINE,
     type: 'line',
     source: DOMINANCE_SOURCE,
     paint: {
       'line-color': ['get', 'color'],
-      'line-width': 0.8,
-      'line-opacity': 0.4,
+      'line-width': 0.6,
+      'line-opacity': 0.3,
     },
   });
 
-  // Label at higher zooms
   map.addLayer({
     id: DOMINANCE_LABEL,
     type: 'symbol',
@@ -220,8 +187,8 @@ export function addDominanceLayer(map: MLMap, erbs: ERB[]) {
     },
     paint: {
       'text-color': ['get', 'color'],
-      'text-halo-color': 'var(--bg)',
-      'text-halo-width': 1,
+      'text-halo-color': '#0f1419',
+      'text-halo-width': 1.5,
     },
   });
 }
@@ -233,9 +200,23 @@ export function removeDominanceLayer(map: MLMap) {
   if (map.getSource(DOMINANCE_SOURCE)) map.removeSource(DOMINANCE_SOURCE);
 }
 
+// Debounced zoom update — only recalculate if resolution actually changed
+let _domDebounce: ReturnType<typeof setTimeout> | null = null;
+
 export function updateDominanceForZoom(map: MLMap, erbs: ERB[]) {
-  // Recalculate with new resolution matching current zoom
-  addDominanceLayer(map, erbs);
+  if (_domDebounce) clearTimeout(_domDebounce);
+  _domDebounce = setTimeout(() => {
+    const zoom = map.getZoom();
+    const newRes = getH3Resolution(zoom);
+    // Only rebuild if resolution changed
+    if (_domCache && _domCache.resolution === newRes) return;
+    addDominanceLayer(map, erbs);
+  }, 300);
+}
+
+// Clear cache when switching away from dominance
+export function clearDominanceCache() {
+  _domCache = null;
 }
 
 // ─── Dominance Stats Panel ──────────────────────
