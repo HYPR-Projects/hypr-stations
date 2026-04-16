@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react';
-import { useAuth } from './AuthProvider';
 import { EXECS, SHEETS_WEBHOOK } from '../../lib/constants';
 import { formatAudience } from '../../lib/audience';
 
@@ -20,7 +19,6 @@ interface CheckoutModalProps {
 type Step = 'form' | 'execs';
 
 export default function CheckoutModal({ open, onClose, stations }: CheckoutModalProps) {
-  const { user } = useAuth();
   const [step, setStep] = useState<Step>('form');
   const [form, setForm] = useState({ name: '', company: '', email: '', phone: '', budget: '' });
   const [error, setError] = useState('');

@@ -233,7 +233,7 @@ export default function RadioMap() {
       <RadioFilters stations={allStations} onFilter={onFilter} allUFs={data?.allUFs ?? []} allClasses={data?.allClasses ?? []} allFinalidades={data?.allFinalidades ?? []} />
     </MobileDrawer>
 
-    <SelectionBar count={cart.size} summary={summary} onCheckout={isHypr ? () => setCheckoutOpen(true) : login} onDownload={isHypr ? () => exportRadioCSV(cart, allStations) : login} canDownload={isHypr} />
+    <SelectionBar count={cart.size} summary={summary} onCheckout={() => setCheckoutOpen(true)} onDownload={isHypr ? () => exportRadioCSV(cart, allStations) : login} canDownload={isHypr} />
     <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} stations={ckStations} />
   </>);
 }

@@ -531,7 +531,7 @@ export default function CellMap() {
     </MobileDrawer>
 
     <SelectionBar count={cart.size} summary={summary}
-      onCheckout={isHypr ? () => setCheckoutOpen(true) : login}
+      onCheckout={() => setCheckoutOpen(true)}
       onDownload={isHypr ? () => exportCellCSV(allErbs, cart) : login}
       canDownload={isHypr} />
     <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} stations={ckStations} />
