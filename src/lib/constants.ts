@@ -85,7 +85,6 @@ export const EXECS = [
   { name: 'Camila Tenorio', phone: '5511968639702', img: 'exec-camila.webp' },
   { name: 'Danilo Pereira', phone: '5511993906969', img: 'exec-danilo.webp' },
   { name: 'Egle Stein', phone: '5511996788521', img: 'exec-egle.webp' },
-  { name: 'Fabio Ferri', phone: '5511983771489', img: 'exec-fabio.webp' },
   { name: 'Giovanna Hoffmann', phone: '5511999622306', img: 'exec-giovanna.webp' },
   { name: 'Karol', phone: '5511983532518', img: 'exec-karol.webp' },
   { name: 'Larissa Reis', phone: '5511996144910', img: 'exec-larissa.webp' },
