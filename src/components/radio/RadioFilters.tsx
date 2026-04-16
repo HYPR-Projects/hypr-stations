@@ -49,31 +49,27 @@ export default function RadioFilters({ stations, onFilter }: Props) {
     setF(fresh); apply(fresh);
   }, [apply]);
 
-  const inputStyle = `w-full h-8 px-3 rounded-md text-[12px]
-    bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.10)]
-    text-[var(--text-primary)] placeholder:text-[var(--text-faint)]
-    outline-none focus:border-[var(--accent)] transition-colors duration-200`;
-
   return (
-    <div className="flex flex-col shrink-0 overflow-hidden">
+    <div className="flex flex-col shrink-0 min-w-0 overflow-hidden">
       {/* Type */}
-      <div className="px-4 pt-4 pb-4 border-b border-[var(--border)]">
+      <section className="px-4 py-4 border-b border-[var(--border)] min-w-0">
         <div className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-2.5">Tipo</div>
         <ToggleGroup label="Tipo" options={TYPE_OPTS} active={f.types} onChange={types => upd({ types })} />
-      </div>
+      </section>
 
       {/* UF */}
-      <div className="px-4 pt-4 pb-4 border-b border-[var(--border)]">
+      <section className="px-4 py-4 border-b border-[var(--border)] min-w-0">
         <MultiSelect label="Estado (UF)" placeholder="Todos os estados" options={ALL_UFS}
           selected={f.ufs} onChange={ufs => upd({ ufs })} />
-      </div>
+      </section>
 
       {/* Advanced */}
-      <div className="px-4 pt-3.5 pb-4 border-b border-[var(--border)]">
+      <section className="px-4 py-4 border-b border-[var(--border)] min-w-0">
         <button
           type="button"
           onClick={() => setAdvOpen(!advOpen)}
-          className="flex items-center justify-between w-full bg-transparent border-none p-0 cursor-pointer"
+          style={{ background: 'none', border: 'none', padding: 0, font: 'inherit' }}
+          className="flex items-center justify-between w-full cursor-pointer outline-none"
         >
           <span className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)]">
             Filtros avançados
@@ -86,11 +82,13 @@ export default function RadioFilters({ stations, onFilter }: Props) {
         </button>
 
         {advOpen && (
-          <div className="flex flex-col gap-4 mt-4">
-            <div>
+          <div className="flex flex-col gap-4 mt-4 min-w-0">
+            <div className="min-w-0">
               <label htmlFor={`c-${uid}`} className="block text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-1.5">Cidade</label>
               <input id={`c-${uid}`} value={f.cidade} onChange={e => upd({ cidade: e.target.value })}
-                placeholder="Buscar cidade..." className={inputStyle} />
+                placeholder="Buscar cidade..."
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', boxSizing: 'border-box' }}
+                className="block w-full max-w-full h-8 px-3 rounded-md text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors duration-200" />
             </div>
 
             <MultiSelect label="Classe" placeholder="Todas as classes" options={ALL_CLASSES}
@@ -99,27 +97,31 @@ export default function RadioFilters({ stations, onFilter }: Props) {
             <MultiSelect label="Finalidade" placeholder="Todas" options={ALL_FINALIDADES}
               selected={f.finalidades} onChange={finalidades => upd({ finalidades })} searchable={false} />
 
-            <div>
+            <div className="min-w-0">
               <label htmlFor={`e-${uid}`} className="block text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-1.5">Entidade</label>
               <input id={`e-${uid}`} value={f.entidade} onChange={e => upd({ entidade: e.target.value })}
-                placeholder="Buscar entidade..." className={inputStyle} />
+                placeholder="Buscar entidade..."
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', boxSizing: 'border-box' }}
+                className="block w-full max-w-full h-8 px-3 rounded-md text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors duration-200" />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label htmlFor={`n-${uid}`} className="block text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-1.5">Nome da rádio</label>
               <input id={`n-${uid}`} value={f.nome} onChange={e => upd({ nome: e.target.value })}
-                placeholder="Jovem Pan, Band, CBN..." className={inputStyle} />
+                placeholder="Jovem Pan, Band, CBN..."
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', boxSizing: 'border-box' }}
+                className="block w-full max-w-full h-8 px-3 rounded-md text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent)] transition-colors duration-200" />
             </div>
 
             <button onClick={reset} type="button"
-              className="w-full h-8 rounded-md text-[11px] font-medium text-[var(--accent)]
-                         bg-transparent border border-[rgba(255,255,255,0.08)]
+              style={{ background: 'none', border: '1px solid rgba(255,255,255,0.08)', boxSizing: 'border-box' }}
+              className="block w-full max-w-full h-8 rounded-md text-[11px] font-medium text-[var(--accent)]
                          hover:border-[var(--accent)] cursor-pointer transition-colors duration-200">
               Limpar filtros
             </button>
           </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

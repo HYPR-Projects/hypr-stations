@@ -25,13 +25,14 @@ export default function MultiSelect({ label, placeholder, options, selected, onC
   const toggle = (v: string) => { const n = new Set(selected); n.has(v) ? n.delete(v) : n.add(v); onChange(n); };
 
   return (
-    <div className="flex flex-col gap-1.5" ref={ref}>
+    <div className="flex flex-col gap-1.5 min-w-0" ref={ref}>
       <label id={lid} className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)]">{label}</label>
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-haspopup="listbox" aria-labelledby={lid}
-        className="w-full flex items-center gap-1.5 h-8 px-3 rounded-md text-left text-[12px] transition-all duration-200 cursor-pointer"
+        className="w-full max-w-full flex items-center gap-1.5 h-8 px-3 rounded-md text-left text-[12px] transition-all duration-200 cursor-pointer"
         style={{
           background: 'rgba(255,255,255,0.04)',
           border: open ? '1px solid var(--accent)' : '1px solid rgba(255,255,255,0.10)',
+          boxSizing: 'border-box',
         }}>
         {selected.size === 0
           ? <span className="text-[var(--text-faint)] truncate">{placeholder}</span>
