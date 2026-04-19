@@ -8,9 +8,10 @@ interface Props {
   onOptionsChange: (opts: DominanceOptions) => void;
   onAddVisibleToCart?: (opts: DominanceOptions, resKey: string, options: { includeAllOperators: boolean }) => Promise<number>;
   getVisibleErbCount?: (opts: DominanceOptions, resKey: string, options: { includeAllOperators: boolean }) => number;
-  /** Whether the bottom SelectionBar is visible (cart non-empty). When true the
-   *  panel reserves room above it. Prevents overlap in crowded viewports. */
-  hasSelectionBar?: boolean;
+  /** Live height of the bottom SelectionBar in px (0 when hidden). The panel
+   *  reserves this much room at the bottom so its content never overlaps the
+   *  bar — measured, not guessed. */
+  selectionBarHeight?: number;
 }
 
 const TECH_OPTS: { value: 'all' | '5G' | '4G'; label: string }[] = [
@@ -28,7 +29,7 @@ const STATUS = {
   absent:    { color: '#e85454', bg: 'rgba(232,84,84,0.12)',  bgLight: 'rgba(232,84,84,0.06)' },
 };
 
-export default function DominancePanel({ zoom, onOptionsChange, onAddVisibleToCart, getVisibleErbCount, hasSelectionBar = false }: Props) {
+export default function DominancePanel({ zoom, onOptionsChange, onAddVisibleToCart, getVisibleErbCount, selectionBarHeight = 0 }: Props) {
   const [open, setOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
     const v = localStorage.getItem(LS_KEY);
@@ -166,11 +167,14 @@ export default function DominancePanel({ zoom, onOptionsChange, onAddVisibleToCa
 
   // Panel layout reserves vertical space intelligently:
   //  - top: fixed 80px (below ViewModeSelector)
-  //  - bottom: 14px when cart empty, 88px when SelectionBar is visible
-  // The outer container is flex-column with a fixed header (toggle button)
-  // and a scrollable body — if content exceeds the available height, the
-  // action button at the bottom stays visible while the middle scrolls.
-  const bottomGap = hasSelectionBar ? 88 : 14;
+  //  - bottom: selectionBarHeight + 14px (breathing room above the bar,
+  //    or 14px alone when the bar is hidden)
+  // Height is driven by the SelectionBar's ResizeObserver in the parent —
+  // no hardcoded pixel assumptions. Flex-column with scrollable body means
+  // the CTA button and any footer (e.g. 'Incluir outras operadoras'
+  // checkbox) remain visible even when filters push content beyond the
+  // viewport.
+  const bottomGap = selectionBarHeight + 14;
 
   return (
     <div

@@ -30,6 +30,8 @@ export default function RadioMap() {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Reported live by SelectionBar's ResizeObserver; 0 when cart is empty.
+  const [selectionBarHeight, setSelectionBarHeight] = useState(0);
   const mapRef = useRef<MLMap | null>(null);
   // State mirror so MapOverlayPopup receives the map as a prop that
   // triggers re-render when it becomes available.
@@ -171,7 +173,7 @@ export default function RadioMap() {
         {/* Legend */}
         {/* Legend */}
         <div
-          style={{ bottom: cart.size > 0 ? 84 : 14 }}
+          style={{ bottom: selectionBarHeight > 0 ? selectionBarHeight + 14 : 14 }}
           className="absolute right-3.5 z-10 rounded-[10px] border-[0.5px] px-4 py-3 pointer-events-none overlay-panel transition-[bottom] duration-200">
           <div className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-2.5">Legenda</div>
           <div className="flex items-center gap-2 text-[12px] text-[var(--text-primary)] mb-1.5">
@@ -217,7 +219,7 @@ export default function RadioMap() {
       <RadioFilters stations={allStations} onFilter={onFilter} allUFs={data?.allUFs ?? []} allClasses={data?.allClasses ?? []} allFinalidades={data?.allFinalidades ?? []} />
     </MobileDrawer>
 
-    <SelectionBar count={cart.size} summary={summary} onCheckout={() => setCheckoutOpen(true)} onDownload={isHypr ? () => exportRadioCSV(cart, allStations) : login} canDownload={isHypr} />
+    <SelectionBar count={cart.size} summary={summary} onCheckout={() => setCheckoutOpen(true)} onDownload={isHypr ? () => exportRadioCSV(cart, allStations) : login} canDownload={isHypr} onHeightChange={setSelectionBarHeight} />
     <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} stations={ckStations} />
   </>);
 }

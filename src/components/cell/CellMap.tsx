@@ -76,6 +76,9 @@ export default function CellMap() {
   const domOptsRef = useRef<DominanceOptions>({});
   const [domOpts, setDomOpts] = useState<DominanceOptions>({});
   const [mapZoom, setMapZoom] = useState(4.2);
+  // Reported live by SelectionBar's ResizeObserver; used by overlays that
+  // need to reserve bottom space. 0 when the bar isn't visible.
+  const [selectionBarHeight, setSelectionBarHeight] = useState(0);
 
   // Load data
   useEffect(() => {
@@ -633,12 +636,12 @@ export default function CellMap() {
             onOptionsChange={handleDomOptsChange}
             onAddVisibleToCart={handleAddVisibleToCart}
             getVisibleErbCount={handleGetVisibleErbCount}
-            hasSelectionBar={cart.size > 0}
+            selectionBarHeight={selectionBarHeight}
           />
         )}
 
         {/* Legend — hidden in dominance mode (panel has the info) */}
-        <CellLegend viewMode={viewMode} opCounts={opCounts} hasSelectionBar={cart.size > 0} />
+        <CellLegend viewMode={viewMode} opCounts={opCounts} selectionBarHeight={selectionBarHeight} />
 
         {/* Loading overlay */}
         {loading && (
@@ -666,7 +669,7 @@ export default function CellMap() {
         {/* Coverage radius toggle */}
         {viewMode === 'pins' && !loading && (
           <button onClick={toggleCoverage} aria-label="Raios de cobertura" aria-pressed={showCoverage}
-            style={{ bottom: cart.size > 0 ? 84 : 14 }}
+            style={{ bottom: selectionBarHeight > 0 ? selectionBarHeight + 14 : 14 }}
             className={`absolute left-3.5 z-10 flex items-center gap-2 px-4 py-2 rounded-[10px] border-[0.5px] text-[11px] font-medium cursor-pointer transition-all duration-200
               ${showCoverage
                 ? 'bg-[var(--accent-muted)] border-[var(--accent)] text-[var(--accent)]'
@@ -719,7 +722,8 @@ export default function CellMap() {
     <SelectionBar count={cart.size} summary={summary}
       onCheckout={() => setCheckoutOpen(true)}
       onDownload={isHypr ? () => exportCellCSV(allErbs, cart) : login}
-      canDownload={isHypr} />
+      canDownload={isHypr}
+      onHeightChange={setSelectionBarHeight} />
     <CheckoutModal open={checkoutOpen} onClose={() => setCheckoutOpen(false)} stations={ckStations} />
   </>);
 }

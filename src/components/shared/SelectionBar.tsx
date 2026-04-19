@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
 
 interface SelectionBarProps {
   count: number;
@@ -6,13 +6,45 @@ interface SelectionBarProps {
   onCheckout: () => void;
   onDownload?: () => void;
   canDownload?: boolean;
+  /** Fires whenever the bar's rendered height changes (including mount/unmount
+   *  where it fires with 0). Consumers use this to reserve bottom space for
+   *  overlapping overlays like DominancePanel, CellLegend, Raios toggle. */
+  onHeightChange?: (height: number) => void;
 }
 
-export default function SelectionBar({ count, summary, onCheckout, onDownload, canDownload }: SelectionBarProps) {
+export default function SelectionBar({ count, summary, onCheckout, onDownload, canDownload, onHeightChange }: SelectionBarProps) {
+  const barRef = useRef<HTMLDivElement>(null);
+  const lastReported = useRef<number>(0);
+
+  // Report height to parent via ResizeObserver. Covers responsive changes
+  // (px-5 vs md:px-7), font swap, device orientation, etc. — no magic numbers.
+  useLayoutEffect(() => {
+    if (!onHeightChange) return;
+    if (count === 0) {
+      if (lastReported.current !== 0) { lastReported.current = 0; onHeightChange(0); }
+      return;
+    }
+    const el = barRef.current;
+    if (!el) return;
+    const report = () => {
+      const h = el.offsetHeight;
+      if (h !== lastReported.current) { lastReported.current = h; onHeightChange(h); }
+    };
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [count, onHeightChange]);
+
+  // Emit 0 on unmount to avoid stale height lingering after user clears cart
+  // in a way that skips the count=0 render path.
+  useEffect(() => () => { if (onHeightChange && lastReported.current !== 0) onHeightChange(0); }, [onHeightChange]);
+
   if (count === 0) return null;
 
   return (
     <div
+      ref={barRef}
       role="status"
       aria-live="polite"
       className="fixed bottom-0 left-0 right-0 z-[1400] border-t px-5 md:px-7 py-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom))] md:pb-3.5
