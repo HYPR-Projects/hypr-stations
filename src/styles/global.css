@@ -126,6 +126,12 @@
     --shadow-dropdown: 0 8px 32px rgba(0, 0, 0, 0.3);
     --popup-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.2);
 
+    /* Bottom-safe: how much vertical space at the bottom is reserved for
+       fixed chrome (mobile tab bar on <md, nothing on ≥md). Map overlays
+       (legend, raios toggle, dominance panel) add this to their own bottom
+       offset so they never collide with the tab bar. */
+    --bottom-safe: 0px;
+
     /* Tech badge colors — used in DOM (list rows, popup, filters). Map layers use hex from constants.ts */
     --tech-5g-fg: #e85454;
     --tech-5g-bg: rgba(232, 84, 84, 0.10);
@@ -207,6 +213,15 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 2px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--border-active); }
+
+  /* Mobile-only: reserve space for the bottom tab bar so overlays don't
+     collide with it. Tab bar height ≈ 55px + safe-area-inset-bottom for
+     devices with home indicators. */
+  @media (max-width: 767px) {
+    html {
+      --bottom-safe: calc(55px + env(safe-area-inset-bottom));
+    }
+  }
 }
 
 @layer utilities {
@@ -239,6 +254,11 @@ button[style*="--op-hover"]:not([data-focused]):hover {
   to { transform: translateY(0); }
 }
 
+@keyframes slideDown {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
+
 @keyframes barIn {
   from { transform: scaleX(0); }
   to { transform: scaleX(1); }
@@ -247,6 +267,74 @@ button[style*="--op-hover"]:not([data-focused]):hover {
 @keyframes dotPulse {
   0%, 100% { opacity: 0.35; }
   50% { opacity: 1; }
+}
+
+@keyframes highlightPulse {
+  0% { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 0 rgba(77, 184, 212, 0.35); }
+  50% { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 4px rgba(77, 184, 212, 0); }
+  100% { box-shadow: inset 3px 0 0 var(--accent), 0 0 0 0 rgba(77, 184, 212, 0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes popIn {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes countBump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* Skeleton shimmer utility — used by loading states */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface2) 0%,
+    var(--bg-surface3) 50%,
+    var(--bg-surface2) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 6px;
+}
+
+/* Smooth theme toggle — scoped to a single frame when html.theme-switching
+   is applied. Avoids transitioning backgrounds on every state change (which
+   would fight hover/active feedback) while still giving a polished light/dark
+   swap. ThemeToggle adds/removes the class. */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease,
+    fill 0.25s ease,
+    stroke 0.25s ease !important;
+}
+
+/* Respect user motion preferences — disable long animations, keep only
+   brief fades for basic feedback. Covers WCAG 2.2 AA. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.1s !important;
+    scroll-behavior: auto !important;
+  }
+  /* Keep focus ring instant, not animated. */
+  :focus-visible {
+    transition: none !important;
+  }
 }
 
 /* MapLibre GL overrides */

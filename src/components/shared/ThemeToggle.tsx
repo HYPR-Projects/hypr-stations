@@ -12,7 +12,14 @@ export default function ThemeToggle() {
     const next = theme === 'dark' ? 'light' : 'dark';
     setTheme(next);
     localStorage.setItem('hypr-theme', next);
-    document.documentElement.classList.toggle('light', next === 'light');
+    // Flip the flag first so the CSS transition window opens; then swap the
+    // theme class so all themed properties animate together. Clear the flag
+    // after 300ms (transition is 250ms) so subsequent hover/active state
+    // changes aren't slowed down.
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    root.classList.toggle('light', next === 'light');
+    window.setTimeout(() => root.classList.remove('theme-switching'), 300);
   };
 
   return (
