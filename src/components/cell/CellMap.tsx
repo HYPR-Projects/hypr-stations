@@ -10,6 +10,7 @@ import CellStationList from './CellStationList';
 import MobileDrawer from '../shared/MobileDrawer';
 import ViewModeSelector from './ViewModeSelector';
 import DominancePanel from './DominancePanel';
+import CellLegend from './CellLegend';
 import { fetchERBs, getFilterOptions, type ERB } from './cellData';
 import { OPERADORA_COLORS, TECH_COLORS } from '../../lib/constants';
 import { formatAudience, estimateCellAudience, estimateCellRadius } from '../../lib/audience';
@@ -462,31 +463,7 @@ export default function CellMap() {
         )}
 
         {/* Legend — hidden in dominance mode (panel has the info) */}
-        {viewMode !== 'dominance' && (
-        <div className="absolute bottom-3.5 right-3.5 z-10 rounded-[10px] border-[0.5px] px-4 py-3 pointer-events-none overlay-panel">
-          {viewMode === 'heatmap' ? (<>
-            <div className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-2">Densidade</div>
-            <div className="flex items-center gap-1 mb-1">
-              <div className="h-[3px] flex-1 rounded-full" style={{
-                background: 'linear-gradient(to right, rgba(33,102,172,0.4), rgba(51,151,185,0.6), rgba(102,194,165,0.7), rgba(237,217,0,0.8), rgba(245,39,43,0.85))'
-              }} />
-            </div>
-            <div className="flex justify-between text-[11px] text-[var(--text-muted)]">
-              <span>Baixa</span><span>Alta</span>
-            </div>
-          </>) : (<>
-            <div className="text-[11px] font-medium tracking-[0.03em] text-[var(--text-muted)] mb-2.5">Operadoras</div>
-            {Object.entries(opCounts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([op, n]) => (
-              <div key={op} className="flex items-center gap-2 text-[12px] text-[var(--text-primary)] mb-1.5">
-                <span className="w-[7px] h-[7px] rounded-full shrink-0"
-                  style={{ background: OPERADORA_COLORS[op] || OPERADORA_COLORS['Outras'] }} />
-                {op} — {n.toLocaleString('pt-BR')}
-              </div>
-            ))}
-          </>)}
-          <div className="text-[11px] text-[var(--text-muted)] mt-2">Anatel · Fev/2026</div>
-        </div>
-        )}
+        <CellLegend viewMode={viewMode} opCounts={opCounts} />
 
         {/* Loading overlay */}
         {loading && (
