@@ -31,6 +31,9 @@ export default function RadioMap() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const mapRef = useRef<MLMap | null>(null);
+  // State mirror so MapOverlayPopup receives the map as a prop that
+  // triggers re-render when it becomes available.
+  const [mapInstance, setMapInstance] = useState<MLMap | null>(null);
   // React-managed popup state (replaces the maplibregl.Popup pattern, which
   // injected DOM wrappers that leaked light-theme backgrounds in dark mode).
   const [popup, setPopup] = useState<{ station: RadioStation; lngLat: [number, number] } | null>(null);
@@ -55,6 +58,7 @@ export default function RadioMap() {
 
   const onMapReady = useCallback((map: MLMap) => {
     mapRef.current = map;
+    setMapInstance(map);
     const gj = buildGeoJSON(filtered);
     ['cluster-count','clusters','points-fm','points-om'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
     if (map.getSource('stations')) map.removeSource('stations');
@@ -188,7 +192,7 @@ export default function RadioMap() {
 
         {/* React-rendered popup — pure app markup, no maplibregl.Popup involvement */}
         <MapOverlayPopup
-          map={mapRef.current}
+          map={mapInstance}
           lngLat={popup?.lngLat || null}
           onClose={() => setPopup(null)}
         >

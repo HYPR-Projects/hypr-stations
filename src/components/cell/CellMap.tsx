@@ -49,6 +49,11 @@ export default function CellMap() {
   const [viewMode, setViewMode] = useState<string>('pins');
   const [showCoverage, setShowCoverage] = useState(false);
   const mapRef = useRef<MLMap | null>(null);
+  // React state mirror of the map instance. mapRef.current is populated
+  // in onMapReady (imperative) but <MapOverlayPopup> needs the map as a
+  // prop that triggers re-render when it becomes available. Two fields,
+  // one for each consumer pattern.
+  const [mapInstance, setMapInstance] = useState<MLMap | null>(null);
   // Pin popup state — React-managed. The old maplibregl.Popup ref was
   // replaced because its DOM wrappers fought the theme tokens (see
   // MapOverlayPopup for the structural reason).
@@ -292,6 +297,7 @@ export default function CellMap() {
 
   const onMapReady = useCallback((map: MLMap) => {
     mapRef.current = map;
+    setMapInstance(map);
 
     // Click handlers (registered once per map instance)
     map.on('click', 'cell-clusters', (e) => {
@@ -671,7 +677,7 @@ export default function CellMap() {
 
         {/* React-rendered popups — pure app markup, no maplibregl.Popup involvement */}
         <MapOverlayPopup
-          map={mapRef.current}
+          map={mapInstance}
           lngLat={pinPopup?.lngLat || null}
           onClose={() => setPinPopup(null)}
         >
@@ -688,7 +694,7 @@ export default function CellMap() {
         </MapOverlayPopup>
 
         <MapOverlayPopup
-          map={mapRef.current}
+          map={mapInstance}
           lngLat={hexPopup?.lngLat || null}
           onClose={() => setHexPopup(null)}
         >

@@ -6,14 +6,19 @@ import { createPortal } from 'react-dom';
  * React-based map popup, positioned via map.project(). Deliberately does NOT
  * use maplibregl.Popup — that class injects DOM wrappers with their own
  * backgrounds/borders that fight the app's theme tokens. This component
- * renders pure app-themed markup as a child of document.body (portal) and
- * positions itself with absolute coordinates synced to the map on every
- * pan/zoom/move frame.
+ * renders pure app-themed markup to document.body (portal) and positions
+ * itself with absolute coordinates synced to the map on every move frame.
  *
- * Anchor convention: the `lngLat` point is rendered as a small chevron tip
- * at the bottom-center of the card. The card body grows upward from the tip,
- * anchored at its bottom edge. Matches the visual language of the previous
- * maplibregl.Popup output so muscle memory isn't broken.
+ * Close behavior: Escape only. Dismissal via clicking on empty map is the
+ * CALLER's responsibility — the caller's map.on('click', ...) handlers for
+ * layers (pins, hexes) fire BEFORE any generic map.on('click') we'd register
+ * here, so a naive auto-close would kill the popup on the same click that
+ * opened it. Instead, the caller adds its own generic click listener that
+ * closes only when no layer handler matched.
+ *
+ * First render: before we know the card's height, we position invisibly at
+ * the anchor and flip to visible on the next frame with the correct offset.
+ * Prevents the card from flashing below/beside the anchor on open.
  */
 export interface MapOverlayPopupProps {
   map: MLMap | null;
@@ -22,7 +27,6 @@ export interface MapOverlayPopupProps {
   children: React.ReactNode;
   maxWidth?: number;   // default 340
   offset?: number;     // gap between tip and anchor point, px. default 12
-  closeOnMapClick?: boolean; // default true
   closeOnEscape?: boolean;   // default true
 }
 
@@ -33,16 +37,19 @@ export default function MapOverlayPopup({
   children,
   maxWidth = 340,
   offset = 12,
-  closeOnMapClick = true,
   closeOnEscape = true,
 }: MapOverlayPopupProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
-  const [cardHeight, setCardHeight] = useState(0);
+  const [cardHeight, setCardHeight] = useState<number | null>(null);
 
-  // Track card height so we can anchor the card above the tip correctly.
-  // ResizeObserver fires whenever content (including async images / font
-  // swap) changes dimensions.
+  // Reset measured height whenever the popup opens for a new point, so the
+  // previous content's size doesn't misplace the new content on open.
+  useEffect(() => {
+    if (lngLat) setCardHeight(null);
+  }, [lngLat]);
+
+  // Measure card height synchronously before paint.
   useLayoutEffect(() => {
     if (!cardRef.current) return;
     const el = cardRef.current;
@@ -51,7 +58,7 @@ export default function MapOverlayPopup({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [children]);
+  }, [children, pos]);
 
   // Sync screen position with the map on every frame.
   useEffect(() => {
@@ -75,18 +82,6 @@ export default function MapOverlayPopup({
     };
   }, [map, lngLat]);
 
-  // Close on map click elsewhere
-  useEffect(() => {
-    if (!map || !closeOnMapClick) return;
-    const onClick = (ev: any) => {
-      // Ignore clicks that originated inside the popup card (buttons, etc.)
-      if (cardRef.current?.contains(ev.originalEvent?.target as Node)) return;
-      onClose();
-    };
-    map.on('click', onClick);
-    return () => { map.off('click', onClick); };
-  }, [map, closeOnMapClick, onClose]);
-
   // Close on Escape
   useEffect(() => {
     if (!closeOnEscape) return;
@@ -97,25 +92,24 @@ export default function MapOverlayPopup({
 
   if (!pos || !lngLat) return null;
 
-  // Card anchored at its bottom edge, sitting `offset` px above the tip.
-  // Tip itself is a triangle rendered in the bottom 8px of the card container.
   const TIP_HEIGHT = 8;
   const cardLeft = pos.x;
-  const cardBottom = pos.y - offset; // distance from viewport top for the BOTTOM of the card
+  const cardBottom = pos.y - offset;
+  const measured = cardHeight !== null && cardHeight > 0;
+  const topPos = measured ? cardBottom - (cardHeight as number) : cardBottom;
 
   return createPortal(
     <div
       style={{
         position: 'fixed',
         left: cardLeft,
-        top: cardBottom - cardHeight,
+        top: topPos,
         transform: 'translateX(-50%)',
         zIndex: 1000,
         maxWidth,
         width: 'max-content',
-        // Prevent the card from clipping the map when anchor is near edges:
-        // browser handles overflow naturally since position is fixed.
-        pointerEvents: 'none', // re-enabled on the card itself
+        pointerEvents: 'none',
+        visibility: measured ? 'visible' : 'hidden',
       }}
     >
       <div
@@ -137,20 +131,13 @@ export default function MapOverlayPopup({
           onClick={onClose}
           style={{
             position: 'absolute',
-            top: 10,
-            right: 10,
-            width: 26,
-            height: 26,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'transparent',
-            border: 'none',
-            borderRadius: 6,
+            top: 10, right: 10,
+            width: 26, height: 26,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'transparent', border: 'none', borderRadius: 6,
             cursor: 'pointer',
             color: 'var(--text-muted)',
-            fontSize: 18,
-            lineHeight: 1,
+            fontSize: 18, lineHeight: 1,
             transition: 'background 0.15s ease, color 0.15s ease',
             zIndex: 2,
           }}
@@ -162,23 +149,17 @@ export default function MapOverlayPopup({
             (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
             (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
           }}
-        >
-          ×
-        </button>
+        >×</button>
         {children}
       </div>
 
-      {/* Tip (chevron pointing down toward the anchor). Uses the same
-          --bg-surface background so it's seamless with the card, and a
-          subtle shadow underneath so it reads as part of the card. */}
+      {/* Tip (chevron pointing down toward the anchor) */}
       <div
         style={{
           position: 'absolute',
-          left: '50%',
-          bottom: -TIP_HEIGHT,
+          left: '50%', bottom: -TIP_HEIGHT,
           transform: 'translateX(-50%)',
-          width: 16,
-          height: TIP_HEIGHT,
+          width: 16, height: TIP_HEIGHT,
           pointerEvents: 'none',
         }}
       >
