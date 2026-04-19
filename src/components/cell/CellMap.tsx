@@ -14,7 +14,7 @@ import CellLegend from './CellLegend';
 import { fetchERBs, getFilterOptions, type ERB } from './cellData';
 import { OPERADORA_COLORS, TECH_COLORS } from '../../lib/constants';
 import { formatAudience, estimateCellAudience, estimateCellRadius } from '../../lib/audience';
-import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, forceRedrawDominance, loadDominanceData, getErbIdsInVisibleHexes, type DominanceOptions } from './analysisLayers';
+import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, forceRedrawDominance, loadDominanceData, getErbIdsInVisibleHexes, buildHexToErbsMap, getHexCenter, type DominanceOptions } from './analysisLayers';
 import { updateCoverageCircles, removeCoverageCircles } from './coverageLayer';
 import { downloadCSV } from '../../lib/csv';
 
@@ -47,6 +47,9 @@ export default function CellMap() {
   const [showCoverage, setShowCoverage] = useState(false);
   const mapRef = useRef<MLMap | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
+  const activeHexRef = useRef<string | null>(null);
+  const hoveredHexRef = useRef<string | null>(null);
+  const openHexPopupRef = useRef<((feat: maplibregl.MapGeoJSONFeature, lngLat: maplibregl.LngLat) => void) | null>(null);
   const viewModeRef = useRef<string>('pins');
   const coverageRef = useRef(false);
   const filteredRef = useRef<ERB[]>([]);
@@ -205,6 +208,10 @@ export default function CellMap() {
     setDomOpts(opts);
     const map = mapRef.current;
     if (map && viewModeRef.current === 'dominance') {
+      // Close any open hex popup — the data (and hex visibility) is about to change
+      if (popupRef.current) popupRef.current.remove();
+      activeHexRef.current = null;
+      hoveredHexRef.current = null;
       forceRedrawDominance(map, opts);
     }
   }, []);
@@ -293,6 +300,47 @@ export default function CellMap() {
     ['cell-clusters', 'cell-points'].forEach(id => {
       map.on('mouseenter', id, () => { map.getCanvas().style.cursor = 'pointer'; });
       map.on('mouseleave', id, () => { map.getCanvas().style.cursor = ''; });
+    });
+
+    // Dominance hex interactions — hover, active, click-to-popup
+    const DOM_FILL = 'erb-dominance-fill';
+    const DOM_SRC = 'erb-dominance';
+
+    map.on('mousemove', DOM_FILL, (e) => {
+      if (!e.features?.length) return;
+      const id = e.features[0].id as string | undefined;
+      if (!id) return;
+      map.getCanvas().style.cursor = 'pointer';
+      if (hoveredHexRef.current === id) return;
+      if (hoveredHexRef.current) {
+        try { map.setFeatureState({ source: DOM_SRC, id: hoveredHexRef.current }, { hovered: false }); } catch {}
+      }
+      hoveredHexRef.current = id;
+      try { map.setFeatureState({ source: DOM_SRC, id }, { hovered: true }); } catch {}
+    });
+
+    map.on('mouseleave', DOM_FILL, () => {
+      map.getCanvas().style.cursor = '';
+      if (hoveredHexRef.current) {
+        try { map.setFeatureState({ source: DOM_SRC, id: hoveredHexRef.current }, { hovered: false }); } catch {}
+        hoveredHexRef.current = null;
+      }
+    });
+
+    map.on('click', DOM_FILL, (e) => {
+      if (!e.features?.length) return;
+      const feat = e.features[0];
+      const id = feat.id as string | undefined;
+      if (!id) return;
+
+      // Clear previous active state
+      if (activeHexRef.current && activeHexRef.current !== id) {
+        try { map.setFeatureState({ source: DOM_SRC, id: activeHexRef.current }, { active: false }); } catch {}
+      }
+      activeHexRef.current = id;
+      try { map.setFeatureState({ source: DOM_SRC, id }, { active: true }); } catch {}
+
+      openHexPopupRef.current?.(feat, e.lngLat);
     });
 
     map.on('zoomend', () => {
@@ -427,6 +475,188 @@ export default function CellMap() {
       });
     }
   }, []);
+
+
+  // Add ERBs from a single hex to cart (honors focus/tech filters). Returns added count.
+  const handleAddHexToCart = useCallback((h3Id: string): number => {
+    if (!allErbs.length) return 0;
+    const opts = domOptsRef.current;
+    const map = mapRef.current;
+    const resolution = !map ? 4 : map.getZoom() < 6 ? 3 : map.getZoom() < 8 ? 4 : 5;
+    const hexMap = buildHexToErbsMap(allErbs, resolution);
+    const erbIds = hexMap.get(h3Id) || [];
+    if (!erbIds.length) return 0;
+
+    const erbById = new Map(allErbs.map(e => [e.id, e]));
+    const techFilter = opts.techFilter && opts.techFilter !== 'all' ? opts.techFilter : null;
+    const opFilter = opts.focusOp; // cart default: only focus operator
+
+    let added = 0;
+    setCart(prev => {
+      const n = new Set(prev);
+      for (const id of erbIds) {
+        const e = erbById.get(id);
+        if (!e) continue;
+        if (opFilter && e.prestadora_norm !== opFilter) continue;
+        if (techFilter && !e.tecnologias.includes(techFilter)) continue;
+        if (!n.has(id)) { n.add(id); added++; }
+      }
+      return n;
+    });
+    return added;
+  }, [allErbs]);
+
+
+  // Drill-down to a deeper resolution. Centers map on the hex and zooms in.
+  const handleDrillZoom = useCallback((h3Id: string) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const [lng, lat] = getHexCenter(h3Id);
+    const z = map.getZoom();
+    const targetZoom = z < 6 ? 7.2 : z < 8 ? 9.2 : Math.min(z + 2, 12);
+    map.flyTo({ center: [lng, lat], zoom: targetZoom, speed: 1.2 });
+    if (popupRef.current) popupRef.current.remove();
+  }, []);
+
+
+  // Open popup with hex breakdown — operator shares, status, action buttons
+  const openHexPopup = useCallback((feat: maplibregl.MapGeoJSONFeature, lngLat: maplibregl.LngLat) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (popupRef.current) popupRef.current.remove();
+
+    const props = feat.properties || {};
+    const h3Id = props.h3 as string;
+    const dominant = props.dominant as string;
+    const total = props.total as number;
+    const dominantPct = props.dominantPct as number;
+    const status = (props.status as string | null) || null;
+
+    // Extract operator counts from properties (stored by addDominanceLayer via spread of h.o)
+    const opCounts: [string, number][] = [];
+    for (const [k, v] of Object.entries(props)) {
+      if (typeof v === 'number' && OPERADORA_COLORS[k]) {
+        opCounts.push([k, v as number]);
+      }
+    }
+    opCounts.sort((a, b) => b[1] - a[1]);
+
+    const opts = domOptsRef.current;
+    const focusOp = opts.focusOp;
+    const rivalOp = opts.rivalOp;
+    const inPairMode = !!(focusOp && rivalOp);
+
+    const statusConfig: Record<string, { color: string; bg: string; label: string; labelPair: string }> = {
+      wins:      { color: '#5cb87a', bg: 'rgba(92,184,122,0.12)',  label: 'Domina',  labelPair: 'Vence' },
+      contested: { color: '#e88a4a', bg: 'rgba(232,138,74,0.12)',  label: 'Disputa', labelPair: 'Empate' },
+      absent:    { color: '#e85454', bg: 'rgba(232,84,84,0.12)',   label: 'Ausente', labelPair: 'Perde' },
+    };
+    const statusBadge = (status && statusConfig[status]) ? (() => {
+      const cfg = statusConfig[status];
+      const label = inPairMode ? cfg.labelPair : cfg.label;
+      return `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;background:${cfg.bg};color:${cfg.color}">${label}</span>`;
+    })() : '';
+
+    // Pair-mode head line: "Vivo 153 vs TIM 98"
+    const pairLine = inPairMode ? (() => {
+      const my = props[focusOp!] as number || 0;
+      const rv = props[rivalOp!] as number || 0;
+      const focusColor = OPERADORA_COLORS[focusOp!] || '#7a6e64';
+      const rivalColor = OPERADORA_COLORS[rivalOp!] || '#7a6e64';
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:var(--bg-surface2);border-radius:8px;font-size:12px">
+        <span style="color:${focusColor};font-weight:700">${focusOp}</span>
+        <strong style="color:var(--text-primary);font-variant-numeric:tabular-nums">${my}</strong>
+        <span style="color:var(--text-faint)">vs</span>
+        <span style="color:${rivalColor};font-weight:700">${rivalOp}</span>
+        <strong style="color:var(--text-primary);font-variant-numeric:tabular-nums">${rv}</strong>
+      </div>`;
+    })() : '';
+
+    // Proportional operator list (top 6)
+    const opRows = opCounts.slice(0, 6).map(([op, n]) => {
+      const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+      const color = OPERADORA_COLORS[op] || OPERADORA_COLORS['Outras'];
+      const isFocus = op === focusOp;
+      const isRival = op === rivalOp;
+      const labelStyle = isFocus ? `font-weight:700;color:${color}` : isRival ? `font-weight:600;color:${color}` : 'color:var(--text-primary)';
+      return `<div style="display:flex;align-items:center;gap:10px;font-size:12px;margin-bottom:6px">
+        <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0"></span>
+        <span style="${labelStyle};min-width:66px">${op}</span>
+        <div style="flex:1;height:4px;border-radius:2px;background:var(--input-bg);overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color}"></div>
+        </div>
+        <span style="color:var(--text-muted);font-variant-numeric:tabular-nums;min-width:58px;text-align:right">
+          <strong style="color:var(--text-primary);font-weight:600">${n}</strong> · ${pct}%
+        </span>
+      </div>`;
+    }).join('');
+
+    // Drill-down button only shown below max resolution (r5 = zoom 8+)
+    const z = map.getZoom();
+    const showDrill = z < 8;
+
+    const html = `<div style="font-family:Urbanist,system-ui,sans-serif;min-width:280px">
+      <div style="padding:16px 18px 12px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="21 16 21 8 12 3 3 8 3 16 12 21 21 16"/>
+          </svg>
+          <span style="font-size:10px;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted);font-weight:600">Região</span>
+          ${statusBadge ? `<span style="margin-left:auto">${statusBadge}</span>` : ''}
+        </div>
+        <div style="font-size:13px;color:var(--text-primary);margin-bottom:12px">
+          <strong style="font-weight:600">${total.toLocaleString('pt-BR')}</strong>
+          <span style="color:var(--text-muted)"> ERBs · ${dominant} lidera com ${dominantPct}%</span>
+        </div>
+        ${pairLine}
+        ${opRows}
+      </div>
+      <div style="padding:10px 12px;border-top:0.5px solid var(--border);display:flex;gap:6px">
+        ${showDrill ? `<button data-action="drill" style="flex:0 0 auto;padding:8px 12px;border-radius:8px;font-size:11px;font-weight:600;font-family:Urbanist,sans-serif;cursor:pointer;background:transparent;color:var(--text-secondary);border:0.5px solid var(--input-border);transition:all 0.15s">Aproximar</button>` : ''}
+        <button data-action="add-region" style="flex:1;padding:8px;border-radius:8px;font-size:11px;font-weight:700;font-family:Urbanist,sans-serif;cursor:pointer;background:var(--accent);color:var(--on-accent);border:0;transition:all 0.15s">Adicionar esta região</button>
+      </div>
+    </div>`;
+
+    const popup = new maplibregl.Popup({
+      closeButton: true,
+      closeOnClick: true,
+      maxWidth: '320px',
+      offset: 8,
+    }).setLngLat(lngLat).setHTML(html).addTo(map);
+
+    const el = popup.getElement();
+
+    el?.querySelector('[data-action="add-region"]')?.addEventListener('click', (ev) => {
+      const btn = ev.currentTarget as HTMLButtonElement;
+      const added = handleAddHexToCart(h3Id);
+      btn.textContent = added > 0 ? `+${added.toLocaleString('pt-BR')} no plano` : 'Já no plano';
+      btn.style.background = 'rgba(92,184,122,0.15)';
+      btn.style.color = '#5cb87a';
+      btn.style.border = '0.5px solid rgba(92,184,122,0.4)';
+      setTimeout(() => popup.remove(), 1400);
+    });
+
+    el?.querySelector('[data-action="drill"]')?.addEventListener('click', () => {
+      handleDrillZoom(h3Id);
+    });
+
+    popupRef.current = popup;
+    popup.on('close', () => {
+      popupRef.current = null;
+      // Clear active state on the hex that was highlighted
+      const mm = mapRef.current;
+      if (mm && activeHexRef.current && mm.getSource('erb-dominance')) {
+        try { mm.setFeatureState({ source: 'erb-dominance', id: activeHexRef.current }, { active: false }); } catch {}
+        activeHexRef.current = null;
+      }
+    });
+  }, [handleAddHexToCart, handleDrillZoom]);
+
+  // Keep ref pointed at the latest openHexPopup so the one-time click handler
+  // registered in onMapReady always calls the current version.
+  useEffect(() => {
+    openHexPopupRef.current = openHexPopup;
+  }, [openHexPopup]);
 
 
   const onFilter = useCallback((nf: ERB[]) => { setFiltered(nf); }, []);

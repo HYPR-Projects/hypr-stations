@@ -186,9 +186,10 @@ export function addDominanceLayer(map: MLMap, opts: DominanceOptions = {}) {
   for (const h of hexes) {
     let color: string;
     let opacity: number;
+    let status: DominanceStatus | null = null;
 
     if (focusOp) {
-      const status = computeHexStatus(h, focusOp, rivalOp);
+      status = computeHexStatus(h, focusOp, rivalOp);
       // Apply status filter (only when user has selected specific statuses)
       if (statusFilter && !statusFilter.has(status)) continue;
 
@@ -209,38 +210,78 @@ export function addDominanceLayer(map: MLMap, opts: DominanceOptions = {}) {
       opacity = h.p >= 90 ? 0.55 : h.p >= 70 ? 0.35 : h.p >= 50 ? 0.2 : 0.12;
     }
 
+    // Dynamic label based on current mode:
+    //   No focus:        "Vivo\n137"          (dominant + total)
+    //   Focus solo:      "Vivo\n153"          (focused op + its count)
+    //   Pair mode:       "153 vs 98"          (focus count vs rival count — colors already on map)
+    let label: string;
+    if (focusOp && rivalOp) {
+      const my = h.o[focusOp] || 0;
+      const rv = h.o[rivalOp] || 0;
+      label = `${my} vs ${rv}`;
+    } else if (focusOp) {
+      const my = h.o[focusOp] || 0;
+      label = `${focusOp}\n${my}`;
+    } else {
+      label = `${h.d}\n${h.t}`;
+    }
+
     features.push({
       type: 'Feature' as const,
+      id: h.h, // required for feature-state (hover/active)
       geometry: { type: 'Polygon' as const, coordinates: [h.c] },
       properties: {
-        dominant: h.d, dominantPct: h.p, total: h.t,
-        color, opacity, ...h.o,
+        h3: h.h, dominant: h.d, dominantPct: h.p, total: h.t,
+        color, opacity, label, status,
+        ...h.o,
       },
     });
   }
 
   const geojson: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features };
 
-  map.addSource(DOM_SOURCE, { type: 'geojson', data: geojson });
+  map.addSource(DOM_SOURCE, { type: 'geojson', data: geojson, promoteId: 'h3' });
 
   map.addLayer({
     id: DOM_FILL, type: 'fill', source: DOM_SOURCE,
     paint: {
       'fill-color': ['get', 'color'],
-      'fill-opacity': ['get', 'opacity'],
+      // Boost opacity on hover/active via feature-state
+      'fill-opacity': [
+        'case',
+        ['boolean', ['feature-state', 'active'], false],
+          ['min', ['*', ['get', 'opacity'], 1.6], 0.85],
+        ['boolean', ['feature-state', 'hovered'], false],
+          ['min', ['*', ['get', 'opacity'], 1.3], 0.75],
+        ['get', 'opacity'],
+      ],
     },
   });
 
   map.addLayer({
     id: DOM_LINE, type: 'line', source: DOM_SOURCE,
-    paint: { 'line-color': ['get', 'color'], 'line-width': 0.5, 'line-opacity': 0.25 },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': [
+        'case',
+        ['boolean', ['feature-state', 'active'], false], 2,
+        ['boolean', ['feature-state', 'hovered'], false], 1.5,
+        0.5,
+      ],
+      'line-opacity': [
+        'case',
+        ['boolean', ['feature-state', 'active'], false], 0.95,
+        ['boolean', ['feature-state', 'hovered'], false], 0.6,
+        0.25,
+      ],
+    },
   });
 
   map.addLayer({
     id: DOM_LABEL, type: 'symbol', source: DOM_SOURCE,
     minzoom: 9,
     layout: {
-      'text-field': ['concat', ['get', 'dominant'], '\n', ['to-string', ['get', 'total']]],
+      'text-field': ['get', 'label'],
       'text-size': 10, 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': false,
     },
     paint: { 'text-color': ['get', 'color'], 'text-halo-color': '#0f1419', 'text-halo-width': 1.5 },
@@ -350,9 +391,15 @@ function resKeyToNumber(resKey: string): number {
 
 // hex -> ERB[] mapping, cached per resolution. Built lazily on first use.
 // Iterating 109K ERBs with latLngToCell takes ~150-300ms on first call; cached after.
-import { latLngToCell } from 'h3-js';
+import { latLngToCell, cellToLatLng } from 'h3-js';
 
 const _hexToErbsByRes: Record<number, Map<string, number[]>> = {};
+
+// [lng, lat] center of a given H3 cell — GeoJSON-compatible order
+export function getHexCenter(h3Id: string): [number, number] {
+  const [lat, lng] = cellToLatLng(h3Id);
+  return [lng, lat];
+}
 
 export function buildHexToErbsMap(erbs: ERB[], resolution: number): Map<string, number[]> {
   if (_hexToErbsByRes[resolution]) return _hexToErbsByRes[resolution];
