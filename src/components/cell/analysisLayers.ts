@@ -371,7 +371,13 @@ export function buildHexToErbsMap(erbs: ERB[], resolution: number): Map<string, 
 
 // Collect ERB IDs from hexes that are currently visible given the dominance options.
 // Honors techFilter, focusOp, rivalOp, and statusFilter — exactly what the user sees.
-export function getErbIdsInVisibleHexes(erbs: ERB[], opts: DominanceOptions, resKey: string): number[] {
+// operatorFilter: if provided, only ERBs whose prestadora_norm is in this list are returned.
+export function getErbIdsInVisibleHexes(
+  erbs: ERB[],
+  opts: DominanceOptions,
+  resKey: string,
+  operatorFilter?: string[]
+): number[] {
   if (!_domData) return [];
   const techKey = opts.techFilter || 'all';
   const allHexes = _domData[techKey]?.[resKey] || [];
@@ -392,17 +398,20 @@ export function getErbIdsInVisibleHexes(erbs: ERB[], opts: DominanceOptions, res
     if (list) for (const id of list) ids.add(id);
   }
 
-  // Apply tech filter at ERB level (hex already coarse-filtered, but a single
-  // ERB might have multiple techs — user expects cart to only include matching techs)
-  if (opts.techFilter && opts.techFilter !== 'all') {
-    const erbById = new Map(erbs.map(e => [e.id, e]));
-    const filtered: number[] = [];
-    for (const id of ids) {
-      const e = erbById.get(id);
-      if (e && e.tecnologias.includes(opts.techFilter)) filtered.push(id);
-    }
-    return filtered;
-  }
+  // Apply ERB-level filters: tech and operator
+  const needsTechFilter = opts.techFilter && opts.techFilter !== 'all';
+  const needsOpFilter = operatorFilter && operatorFilter.length > 0;
+  if (!needsTechFilter && !needsOpFilter) return Array.from(ids);
 
-  return Array.from(ids);
+  const opSet = needsOpFilter ? new Set(operatorFilter) : null;
+  const erbById = new Map(erbs.map(e => [e.id, e]));
+  const filtered: number[] = [];
+  for (const id of ids) {
+    const e = erbById.get(id);
+    if (!e) continue;
+    if (needsTechFilter && !e.tecnologias.includes(opts.techFilter!)) continue;
+    if (opSet && !opSet.has(e.prestadora_norm)) continue;
+    filtered.push(id);
+  }
+  return filtered;
 }

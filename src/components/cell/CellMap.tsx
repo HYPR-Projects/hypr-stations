@@ -211,12 +211,18 @@ export default function CellMap() {
 
   // Collect ERB IDs from dominance hexes currently visible (honors all filters)
   // and merge them into the cart. Returns count of newly added IDs.
-  const handleAddVisibleToCart = useCallback(async (opts: DominanceOptions, resKey: string): Promise<number> => {
+  const handleAddVisibleToCart = useCallback(async (
+    opts: DominanceOptions,
+    resKey: string,
+    options: { includeAllOperators: boolean } = { includeAllOperators: false }
+  ): Promise<number> => {
     if (!allErbs.length) return 0;
-    // Yield to the browser so the button can show its loading state before the
-    // h3 mapping (first call = ~200ms) blocks the main thread.
     await new Promise(r => setTimeout(r, 0));
-    const ids = getErbIdsInVisibleHexes(allErbs, opts, resKey);
+    // Default: only ERBs of the focus operator. Checkbox opts into all operators.
+    const operatorFilter = options.includeAllOperators || !opts.focusOp
+      ? undefined
+      : [opts.focusOp];
+    const ids = getErbIdsInVisibleHexes(allErbs, opts, resKey, operatorFilter);
     let addedCount = 0;
     setCart(prev => {
       const n = new Set(prev);
@@ -226,6 +232,20 @@ export default function CellMap() {
       return n;
     });
     return addedCount;
+  }, [allErbs]);
+
+  // Preview count — used by DominancePanel to show the number on the button label
+  // before the user clicks. Same filtering logic as handleAddVisibleToCart.
+  const handleGetVisibleErbCount = useCallback((
+    opts: DominanceOptions,
+    resKey: string,
+    options: { includeAllOperators: boolean } = { includeAllOperators: false }
+  ): number => {
+    if (!allErbs.length) return 0;
+    const operatorFilter = options.includeAllOperators || !opts.focusOp
+      ? undefined
+      : [opts.focusOp];
+    return getErbIdsInVisibleHexes(allErbs, opts, resKey, operatorFilter).length;
   }, [allErbs]);
 
   const toggleCoverage = useCallback(() => {
@@ -478,7 +498,12 @@ export default function CellMap() {
 
         {/* Dominance stats panel */}
         {viewMode === 'dominance' && !loading && (
-          <DominancePanel zoom={mapZoom} onOptionsChange={handleDomOptsChange} onAddVisibleToCart={handleAddVisibleToCart} />
+          <DominancePanel
+            zoom={mapZoom}
+            onOptionsChange={handleDomOptsChange}
+            onAddVisibleToCart={handleAddVisibleToCart}
+            getVisibleErbCount={handleGetVisibleErbCount}
+          />
         )}
 
         {/* Legend — hidden in dominance mode (panel has the info) */}
