@@ -142,6 +142,30 @@ function getResKey(zoom: number): string {
 export interface DominanceOptions {
   techFilter?: 'all' | '5G' | '4G';
   focusOp?: string | null;  // operator to focus on (green=wins, red=loses)
+  rivalOp?: string | null;  // rival to compare against (enables pair mode)
+  statusFilter?: DominanceStatus[]; // when set and non-empty, only show hexes matching these statuses
+}
+
+export type DominanceStatus = 'wins' | 'contested' | 'absent';
+
+// Compute status of a hex for a given focus operator, optionally vs a rival.
+// Solo mode: wins = dominant, contested = present but not dominant, absent = not present
+// Pair mode: wins = focus > rival, contested = similar (<20% gap) or both absent, absent = rival > focus
+export function computeHexStatus(h: HexRaw, focusOp: string, rivalOp?: string | null): DominanceStatus {
+  const myCount = h.o[focusOp] || 0;
+
+  if (rivalOp) {
+    const rvCount = h.o[rivalOp] || 0;
+    if (myCount === 0 && rvCount === 0) return 'contested';
+    const max = Math.max(myCount, rvCount);
+    const diff = Math.abs(myCount - rvCount);
+    if (max > 0 && diff / max < 0.20) return 'contested';
+    return myCount > rvCount ? 'wins' : 'absent';
+  }
+
+  if (h.d === focusOp) return 'wins';
+  if (myCount > 0) return 'contested';
+  return 'absent';
 }
 
 export function addDominanceLayer(map: MLMap, opts: DominanceOptions = {}) {
@@ -155,44 +179,47 @@ export function addDominanceLayer(map: MLMap, opts: DominanceOptions = {}) {
   if (!hexes?.length) return;
 
   const focusOp = opts.focusOp;
+  const rivalOp = opts.rivalOp;
+  const statusFilter = opts.statusFilter?.length ? new Set(opts.statusFilter) : null;
 
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: hexes.map(h => {
-      let color: string;
-      let opacity: number;
+  const features: GeoJSON.Feature[] = [];
+  for (const h of hexes) {
+    let color: string;
+    let opacity: number;
 
-      if (focusOp) {
-        const myCount = h.o[focusOp] || 0;
-        const isDominant = h.d === focusOp;
-        const strength = h.t > 0 ? myCount / h.t : 0;
+    if (focusOp) {
+      const status = computeHexStatus(h, focusOp, rivalOp);
+      // Apply status filter (only when user has selected specific statuses)
+      if (statusFilter && !statusFilter.has(status)) continue;
 
-        if (isDominant) {
-          color = '#5cb87a'; // green — this operator dominates here
-          opacity = Math.min(0.2 + strength * 0.5, 0.65);
-        } else if (myCount > 0) {
-          color = '#e88a4a'; // amber — present but not dominant
-          opacity = Math.min(0.1 + strength * 0.3, 0.35);
-        } else {
-          color = '#e85454'; // red — not present at all
-          opacity = 0.2;
-        }
+      if (status === 'wins') {
+        color = '#5cb87a'; // green
+        const strength = h.t > 0 ? (h.o[focusOp] || 0) / h.t : 0;
+        opacity = Math.min(0.2 + strength * 0.5, 0.65);
+      } else if (status === 'contested') {
+        color = '#e88a4a'; // amber
+        const strength = h.t > 0 ? (h.o[focusOp] || 0) / h.t : 0;
+        opacity = Math.min(0.12 + strength * 0.3, 0.4);
       } else {
-        // General mode: color by dominant operator
-        color = OPERADORA_COLORS[h.d] || OPERADORA_COLORS['Outras'];
-        opacity = h.p >= 90 ? 0.55 : h.p >= 70 ? 0.35 : h.p >= 50 ? 0.2 : 0.12;
+        color = '#e85454'; // red
+        opacity = 0.22;
       }
+    } else {
+      color = OPERADORA_COLORS[h.d] || OPERADORA_COLORS['Outras'];
+      opacity = h.p >= 90 ? 0.55 : h.p >= 70 ? 0.35 : h.p >= 50 ? 0.2 : 0.12;
+    }
 
-      return {
-        type: 'Feature' as const,
-        geometry: { type: 'Polygon' as const, coordinates: [h.c] },
-        properties: {
-          dominant: h.d, dominantPct: h.p, total: h.t,
-          color, opacity, ...h.o,
-        },
-      };
-    }),
-  };
+    features.push({
+      type: 'Feature' as const,
+      geometry: { type: 'Polygon' as const, coordinates: [h.c] },
+      properties: {
+        dominant: h.d, dominantPct: h.p, total: h.t,
+        color, opacity, ...h.o,
+      },
+    });
+  }
+
+  const geojson: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features };
 
   map.addSource(DOM_SOURCE, { type: 'geojson', data: geojson });
 
@@ -234,7 +261,12 @@ export function updateDominanceForZoom(map: MLMap, opts: DominanceOptions = {}) 
   if (_domDebounce) clearTimeout(_domDebounce);
   _domDebounce = setTimeout(() => {
     const newRes = getResKey(map.getZoom());
-    const optsChanged = opts.focusOp !== _lastOpts.focusOp || opts.techFilter !== _lastOpts.techFilter;
+    const statusChanged = JSON.stringify(opts.statusFilter || []) !== JSON.stringify(_lastOpts.statusFilter || []);
+    const optsChanged =
+      opts.focusOp !== _lastOpts.focusOp ||
+      opts.techFilter !== _lastOpts.techFilter ||
+      opts.rivalOp !== _lastOpts.rivalOp ||
+      statusChanged;
     if (newRes === _lastResKey && !optsChanged) return;
     _lastResKey = newRes;
     _lastOpts = { ...opts };

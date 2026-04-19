@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { OPERADORA_COLORS } from '../../lib/constants';
 import { getDominanceStats, getOperatorFocusStats } from './analysisLayers';
-import type { DominanceOptions } from './analysisLayers';
+import type { DominanceOptions, DominanceStatus } from './analysisLayers';
 
 interface Props {
   zoom: number;
@@ -21,6 +21,7 @@ function isDark() {
 export default function DominancePanel({ zoom, onOptionsChange }: Props) {
   const [techFilter, setTechFilter] = useState<'all' | '5G' | '4G'>('all');
   const [focusOp, setFocusOp] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<Set<DominanceStatus>>(new Set());
 
   const dark = isDark();
   const bg = dark ? 'rgba(15, 20, 25, 0.97)' : 'rgba(255, 255, 255, 0.97)';
@@ -36,18 +37,45 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
   const stats = useMemo(() => getDominanceStats(techFilter, resKey), [techFilter, resKey]);
   const focusStats = useMemo(() => focusOp ? getOperatorFocusStats(focusOp, techFilter, resKey) : null, [focusOp, techFilter, resKey]);
 
+  const emit = useCallback((overrides: Partial<DominanceOptions> = {}) => {
+    onOptionsChange({
+      techFilter,
+      focusOp,
+      statusFilter: Array.from(statusFilter),
+      ...overrides,
+    });
+  }, [techFilter, focusOp, statusFilter, onOptionsChange]);
+
   const handleTechChange = useCallback((t: 'all' | '5G' | '4G') => {
     setTechFilter(t);
-    onOptionsChange({ techFilter: t, focusOp });
-  }, [focusOp, onOptionsChange]);
+    emit({ techFilter: t });
+  }, [emit]);
 
   const handleFocusOp = useCallback((op: string) => {
     const next = focusOp === op ? null : op;
     setFocusOp(next);
-    onOptionsChange({ techFilter, focusOp: next });
-  }, [focusOp, techFilter, onOptionsChange]);
+    // Reset status filter when focus changes
+    setStatusFilter(new Set());
+    emit({ focusOp: next, statusFilter: [] });
+  }, [focusOp, emit]);
+
+  const toggleStatus = useCallback((s: DominanceStatus) => {
+    const n = new Set(statusFilter);
+    n.has(s) ? n.delete(s) : n.add(s);
+    setStatusFilter(n);
+    emit({ statusFilter: Array.from(n) });
+  }, [statusFilter, emit]);
 
   if (!stats.byOperator.length) return null;
+
+  // Status box config — same order, same colors, same labels (solo mode)
+  const STATUS_CONFIG: { key: DominanceStatus; color: string; bgColor: string; label: string; count: number }[] = focusStats ? [
+    { key: 'wins', color: '#5cb87a', bgColor: 'rgba(92,184,122,0.1)', label: 'Domina', count: focusStats.wins },
+    { key: 'contested', color: '#e88a4a', bgColor: 'rgba(232,138,74,0.1)', label: 'Disputa', count: focusStats.contested },
+    { key: 'absent', color: '#e85454', bgColor: 'rgba(232,84,84,0.1)', label: 'Ausente', count: focusStats.absent },
+  ] : [];
+
+  const hasStatusFilter = statusFilter.size > 0;
 
   return (
     <div className="absolute top-16 right-3.5 z-10 w-[250px] rounded-[12px] overflow-hidden"
@@ -101,23 +129,43 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
         })}
       </div>
 
-      {/* Focus stats — 3 states */}
+      {/* Focus stats — 3 clickable status filters */}
       {focusStats && focusOp && (
         <div className="px-3 py-3" style={{ borderTop: `0.5px solid ${border}` }}>
           <div className="flex gap-1.5 mb-2.5">
-            <div className="flex-1 rounded-[8px] py-2 text-center" style={{ background: 'rgba(92,184,122,0.1)' }}>
-              <div className="text-[16px] font-bold" style={{ color: '#5cb87a' }}>{focusStats.wins}</div>
-              <div className="text-[9px] tracking-[0.04em] uppercase" style={{ color: textFaint }}>Domina</div>
-            </div>
-            <div className="flex-1 rounded-[8px] py-2 text-center" style={{ background: 'rgba(232,138,74,0.1)' }}>
-              <div className="text-[16px] font-bold" style={{ color: '#e88a4a' }}>{focusStats.contested}</div>
-              <div className="text-[9px] tracking-[0.04em] uppercase" style={{ color: textFaint }}>Disputa</div>
-            </div>
-            <div className="flex-1 rounded-[8px] py-2 text-center" style={{ background: 'rgba(232,84,84,0.1)' }}>
-              <div className="text-[16px] font-bold" style={{ color: '#e85454' }}>{focusStats.absent}</div>
-              <div className="text-[9px] tracking-[0.04em] uppercase" style={{ color: textFaint }}>Ausente</div>
-            </div>
+            {STATUS_CONFIG.map(s => {
+              const active = statusFilter.has(s.key);
+              const dimmed = hasStatusFilter && !active;
+              return (
+                <button key={s.key}
+                  onClick={() => toggleStatus(s.key)}
+                  role="checkbox"
+                  aria-checked={active}
+                  aria-label={`Filtrar por ${s.label}: ${s.count} regiões`}
+                  className="flex-1 rounded-[8px] py-2 text-center cursor-pointer border-0 outline-none
+                             transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  style={{
+                    background: s.bgColor,
+                    border: active ? `1px solid ${s.color}` : '1px solid transparent',
+                    opacity: dimmed ? 0.4 : 1,
+                    boxShadow: active ? `0 0 0 2px ${s.color}20` : 'none',
+                  }}>
+                  <div className="text-[16px] font-bold leading-none" style={{ color: s.color }}>{s.count}</div>
+                  <div className="text-[9px] tracking-[0.04em] uppercase mt-1" style={{ color: textFaint }}>{s.label}</div>
+                </button>
+              );
+            })}
           </div>
+          {hasStatusFilter && (
+            <button
+              type="button"
+              onClick={() => { setStatusFilter(new Set()); emit({ statusFilter: [] }); }}
+              className="text-[10px] font-medium mb-2.5 cursor-pointer bg-transparent border-0 outline-none p-0
+                         hover:opacity-70 transition-opacity"
+              style={{ color: textSecondary }}>
+              Limpar filtro de status
+            </button>
+          )}
           <div className="text-[11px]" style={{ color: textSecondary }}>
             <strong style={{ color: textPrimary }}>{focusStats.pctDomination}%</strong> de domínio territorial
           </div>
