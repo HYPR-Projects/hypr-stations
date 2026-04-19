@@ -124,6 +124,7 @@
     --hover-bg: rgba(255, 255, 255, 0.03);
     --control-border: rgba(255, 255, 255, 0.14);
     --shadow-dropdown: 0 8px 32px rgba(0, 0, 0, 0.3);
+    --popup-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06), 0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.2);
 
     /* Tech badge colors — used in DOM (list rows, popup, filters). Map layers use hex from constants.ts */
     --tech-5g-fg: #e85454;
@@ -167,6 +168,7 @@
     --hover-bg: rgba(0, 0, 0, 0.03);
     --control-border: rgba(0, 0, 0, 0.18);
     --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.10);
+    --popup-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.04);
 
     /* Tech badge colors — darker shades for WCAG AA contrast on light bg */
     --tech-5g-fg: #a32d2d;
@@ -253,62 +255,55 @@ button[style*="--op-hover"]:not([data-focused]):hover {
   z-index: 100;
 }
 
+/* Popup container is a visually neutral wrapper. All visual styling
+   (background, border-radius, shadow, color) lives on the inline HTML
+   div written by each openPopup helper. This avoids two CSS layers
+   with different backgrounds creating visible seams/rings around the
+   popup — a bug that plagued the previous implementation. */
 .maplibregl-popup-content,
 .maplibregl-popup-content * {
   border-color: transparent !important;
 }
 
 .maplibregl-popup-content {
-  background: rgba(22, 29, 36, 0.97) !important;
-  border: 0.5px solid var(--border-hover) !important;
-  border-radius: 16px !important;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5), inset 0 0.5px 0 rgba(255, 255, 255, 0.04) !important;
+  background: transparent !important;
+  color: var(--text-primary) !important;
   padding: 0 !important;
-  overflow: hidden !important;
-  color: var(--text-primary) !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
   max-width: 340px !important;
+  overflow: visible !important; /* let inner div's shadow escape */
 }
 
-html.light .maplibregl-popup-content {
-  background: rgba(255, 255, 255, 0.97) !important;
-  border-color: var(--border-hover) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 0.5px 0 rgba(255, 255, 255, 0.5) !important;
-  color: var(--text-primary) !important;
-}
-
+/* Tip (arrow) hidden — cleaner look, shadow flows uninterrupted */
 .maplibregl-popup-tip,
 .maplibregl-popup .maplibregl-popup-tip {
   display: none !important;
 }
 
+/* Close button — themed via vars, lives on top of the inner card */
 .maplibregl-popup-close-button {
-  color: rgba(255, 255, 255, 0.4) !important;
-  top: 14px !important;
-  right: 14px !important;
-  font-size: 16px !important;
-  width: 28px !important;
-  height: 28px !important;
+  color: var(--text-muted) !important;
+  top: 10px !important;
+  right: 10px !important;
+  font-size: 18px !important;
+  width: 26px !important;
+  height: 26px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  background: rgba(255, 255, 255, 0.06) !important;
+  background: transparent !important;
   border: none !important;
-  border-radius: 8px !important;
+  border-radius: 6px !important;
   cursor: pointer !important;
-  transition: all 0.15s ease !important;
+  transition: background 0.15s ease, color 0.15s ease !important;
   line-height: 1 !important;
+  z-index: 2 !important;
 }
 .maplibregl-popup-close-button:hover {
-  color: rgba(255, 255, 255, 0.8) !important;
-  background: rgba(255, 255, 255, 0.1) !important;
-}
-html.light .maplibregl-popup-close-button {
-  color: rgba(0, 0, 0, 0.3) !important;
-  background: rgba(0, 0, 0, 0.04) !important;
-}
-html.light .maplibregl-popup-close-button:hover {
-  color: rgba(0, 0, 0, 0.7) !important;
-  background: rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-primary) !important;
+  background: var(--bg-surface2) !important;
 }
 
 .maplibregl-ctrl-group {

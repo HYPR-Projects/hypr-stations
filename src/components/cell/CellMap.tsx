@@ -384,54 +384,40 @@ export default function CellMap() {
     const radius = estimateCellRadius(e.tech_principal, e.freq_mhz?.[0] ?? 0);
     const aud = estimateCellAudience(e.tech_principal, e.uf, e.freq_mhz?.[0] ?? 0);
 
-    const isDark = !document.documentElement.classList.contains('light');
-    const c = {
-      textPrimary: isDark ? '#e8ecf0' : '#1a2530',
-      textSecondary: isDark ? '#8899a6' : '#576773',
-      textFaint: isDark ? '#3d4d58' : '#c5cdd6',
-      textMuted: isDark ? '#576773' : '#8899a6',
-      border: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-      mono: isDark ? '#8899a6' : '#576773',
-      audBg: isDark ? 'rgba(77,184,212,0.08)' : 'rgba(42,127,158,0.06)',
-      audBorder: isDark ? 'rgba(77,184,212,0.2)' : 'rgba(42,127,158,0.12)',
-      accent: isDark ? '#4db8d4' : '#2a7f9e',
-      footerOpacity: '0.4',
-    };
-
     const techBadges = e.tecnologias.map(t => {
       const tc = TECH_COLORS[t] || '#576773';
       return `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:600;letter-spacing:0.03em;background:${tc}15;color:${tc};border:0.5px solid ${tc}25">${t}</span>`;
     }).join(' ');
 
-    const html = `<div style="font-family:Urbanist,system-ui,sans-serif;background:var(--bg-surface);color:var(--text-primary);border-radius:12px;overflow:hidden">
+    const html = `<div style="font-family:Urbanist,system-ui,sans-serif;background:var(--bg-surface);color:var(--text-primary);border-radius:14px;box-shadow:var(--popup-shadow);overflow:hidden">
       <div style="padding:20px 22px 16px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
           <div style="width:8px;height:8px;border-radius:50%;background:${opColor};flex-shrink:0"></div>
           <span style="font-weight:700;font-size:16px;color:${opColor};letter-spacing:-0.01em">${e.prestadora_norm}</span>
-          <span style="font-size:10px;color:${c.textFaint};margin-left:auto;font-family:monospace;letter-spacing:0.02em">${e.num_estacao}</span>
+          <span style="font-size:10px;color:var(--text-faint);margin-left:auto;font-family:monospace;letter-spacing:0.02em">${e.num_estacao}</span>
         </div>
-        <div style="font-size:13px;font-weight:500;color:${c.textPrimary};margin-bottom:12px;margin-left:18px">${e.municipio} — ${e.uf}</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text-primary);margin-bottom:12px;margin-left:18px">${e.municipio} — ${e.uf}</div>
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-left:18px">${techBadges}</div>
       </div>
-      <div style="height:0.5px;background:${c.border};margin:0 22px"></div>
+      <div style="height:0.5px;background:var(--border);margin:0 22px"></div>
       <div style="display:flex;padding:14px 22px;gap:24px">
         <div>
-          <div style="font-size:10px;letter-spacing:0.04em;text-transform:uppercase;color:${c.textFaint};margin-bottom:4px">Alcance</div>
-          <div style="font-size:14px;font-weight:600;color:${c.textPrimary}">~${Math.round(radius)} km</div>
+          <div style="font-size:10px;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-faint);margin-bottom:4px">Alcance</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text-primary)">~${Math.round(radius)} km</div>
         </div>
         <div>
-          <div style="font-size:10px;letter-spacing:0.04em;text-transform:uppercase;color:${c.textFaint};margin-bottom:4px">Coordenadas</div>
-          <div style="font-size:12px;font-weight:500;color:${c.mono};font-family:monospace">${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}</div>
+          <div style="font-size:10px;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-faint);margin-bottom:4px">Coordenadas</div>
+          <div style="font-size:12px;font-weight:500;color:var(--text-secondary);font-family:monospace">${e.lat.toFixed(4)}, ${e.lng.toFixed(4)}</div>
         </div>
       </div>
       ${aud > 0 ? `
-      <div style="margin:0 14px 14px;padding:14px 16px;background:${c.audBg};border:0.5px solid ${c.audBorder};border-radius:10px;text-align:center">
-        <div style="font-size:10px;letter-spacing:0.04em;text-transform:uppercase;color:${c.textMuted};margin-bottom:4px">População no raio</div>
-        <div style="font-weight:700;font-size:18px;color:${c.accent};letter-spacing:-0.01em">${formatAudience(aud)} devices</div>
+      <div style="margin:0 14px 14px;padding:14px 16px;background:var(--accent-muted);border:0.5px solid var(--border);border-radius:10px;text-align:center">
+        <div style="font-size:10px;letter-spacing:0.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px">População no raio</div>
+        <div style="font-weight:700;font-size:18px;color:var(--accent);letter-spacing:-0.01em">${formatAudience(aud)} devices</div>
       </div>` : ''}
-      <div style="font-size:10px;color:${c.textFaint};text-align:center;padding:0 22px 4px;opacity:${c.footerOpacity}">Anatel Fev/2026 · Modelo HYPR</div>
+      <div style="font-size:10px;color:var(--text-faint);text-align:center;padding:0 22px 4px;opacity:0.6">Anatel Fev/2026 · Modelo HYPR</div>
       <div style="padding:0 14px 14px">
-        <button data-cart-id="${e.id}" style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;font-family:Urbanist,sans-serif;cursor:pointer;transition:all 0.15s;border:0.5px solid ${cartRef.current.has(e.id) ? 'var(--color-red-400)' : c.accent};background:${cartRef.current.has(e.id) ? 'transparent' : c.accent};color:${cartRef.current.has(e.id) ? 'var(--color-red-400)' : 'var(--on-accent)'}">${cartRef.current.has(e.id) ? 'Remover do plano' : 'Adicionar ao plano'}</button>
+        <button data-cart-id="${e.id}" style="width:100%;padding:10px;border-radius:10px;font-size:12px;font-weight:600;font-family:Urbanist,sans-serif;cursor:pointer;transition:all 0.15s;border:0.5px solid ${cartRef.current.has(e.id) ? 'var(--color-red-400)' : 'var(--accent)'};background:${cartRef.current.has(e.id) ? 'transparent' : 'var(--accent)'};color:${cartRef.current.has(e.id) ? 'var(--color-red-400)' : 'var(--on-accent)'}">${cartRef.current.has(e.id) ? 'Remover do plano' : 'Adicionar ao plano'}</button>
       </div>
     </div>`;
 
@@ -621,7 +607,7 @@ export default function CellMap() {
     const z = map.getZoom();
     const showDrill = z < 12;
 
-    const html = `<div style="font-family:Urbanist,system-ui,sans-serif;min-width:280px;background:var(--bg-surface);color:var(--text-primary);border-radius:12px;overflow:hidden">
+    const html = `<div style="font-family:Urbanist,system-ui,sans-serif;min-width:280px;background:var(--bg-surface);color:var(--text-primary);border-radius:14px;box-shadow:var(--popup-shadow);overflow:hidden">
       <div style="padding:16px 18px 12px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
