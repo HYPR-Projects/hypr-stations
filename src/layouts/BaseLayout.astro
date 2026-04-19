@@ -1,4 +1,6 @@
 ---
+import { ClientRouter } from 'astro:transitions';
+
 interface Props {
   title: string;
   description?: string;
@@ -43,18 +45,62 @@ const {
   <link rel="preload" href="/fonts/urbanist-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/fonts/urbanist-latin-ext.woff2" as="font" type="font/woff2" crossorigin />
 
-  <!-- Theme: apply before paint to avoid flash -->
+  <!-- Theme: apply before paint to avoid flash. Runs on initial load AND
+       after astro:after-swap so the class survives View Transitions. -->
   <script is:inline>
     (function () {
-      const t = localStorage.getItem('hypr-theme') || 'dark';
-      if (t === 'light') document.documentElement.classList.add('light');
+      const apply = () => {
+        const t = localStorage.getItem('hypr-theme') || 'dark';
+        if (t === 'light') document.documentElement.classList.add('light');
+        else document.documentElement.classList.remove('light');
+      };
+      apply();
+      document.addEventListener('astro:after-swap', apply);
     })();
   </script>
 
   <!-- Global CSS (Tailwind + tokens) -->
   <style>
     @import '../styles/global.css';
+
+    /* View transition names — smooth crossfade between pages. Map pages
+       (fullscreen) get a slightly longer fade so the map canvas re-hydrates
+       gracefully. The default Astro transition is instant-swap; overriding
+       the root name gives us a single fade. */
+    @view-transition {
+      navigation: auto;
+    }
+
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation-duration: 220ms;
+      animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+    }
+
+    ::view-transition-old(root) {
+      animation-name: vtFadeOut;
+    }
+    ::view-transition-new(root) {
+      animation-name: vtFadeIn;
+    }
+
+    @keyframes vtFadeOut {
+      to { opacity: 0; }
+    }
+    @keyframes vtFadeIn {
+      from { opacity: 0; }
+    }
+
+    /* Respect reduced-motion for page transitions too. */
+    @media (prefers-reduced-motion: reduce) {
+      ::view-transition-old(root),
+      ::view-transition-new(root) {
+        animation-duration: 0.01ms;
+      }
+    }
   </style>
+
+  <ClientRouter />
 
   <!-- Per-page head content -->
   <slot name="head" />

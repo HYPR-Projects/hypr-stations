@@ -1,4 +1,4 @@
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { List, useListRef } from 'react-window';
 import { OPERADORA_COLORS } from '../../lib/constants';
 import type { ERB } from './cellData';
@@ -13,6 +13,7 @@ interface RowData {
   erbs: ERB[];
   cart: Set<number>;
   activeIdx: number | null;
+  justAddedId: number | null;
   onFocus: (i: number) => void;
   onToggleCart: (id: number) => void;
 }
@@ -36,19 +37,24 @@ function TechBadge({ tech }: { tech: string }) {
 }
 
 const StationRow = memo(function StationRow({
-  index, style, ariaAttributes, erbs, cart, activeIdx, onFocus, onToggleCart,
+  index, style, ariaAttributes, erbs, cart, activeIdx, justAddedId, onFocus, onToggleCart,
 }: { index: number; style: React.CSSProperties; ariaAttributes: Record<string, unknown> } & RowData) {
   const e = erbs[index];
   if (!e) return null;
   const sel = cart.has(e.id);
   const act = activeIdx === index;
+  const pulse = justAddedId === e.id;
 
   return (
     <div style={style} {...ariaAttributes}>
       <div tabIndex={0}
         onClick={() => onFocus(index)}
         onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onFocus(index); } }}
-        style={{ height: ROW_HEIGHT, boxSizing: 'border-box' }}
+        style={{
+          height: ROW_HEIGHT,
+          boxSizing: 'border-box',
+          animation: pulse ? 'highlightPulse 0.6s cubic-bezier(0.16,1,0.3,1) both' : undefined,
+        }}
         className={`relative px-5 py-[14px] cursor-pointer transition-colors duration-150
           outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent)]
           ${sel ? 'bg-[var(--accent-muted)]' : act ? 'bg-[var(--bg-surface2)]' : 'hover:bg-[var(--hover-bg)]'}`}>
@@ -102,6 +108,26 @@ const StationRow = memo(function StationRow({
 export default function CellStationList({ erbs, cart, activeIdx, onFocus, onToggleCart, onClearCart, onSelectAll, totalCount }: Props) {
   const listRef = useListRef();
 
+  // Track most recently added id to trigger highlight pulse on matching row.
+  // Clears 700ms later to avoid re-animating on scroll.
+  const prevCart = useRef<Set<number>>(cart);
+  const [justAddedId, setJustAddedId] = useState<number | null>(null);
+  useEffect(() => {
+    if (cart.size > prevCart.current.size) {
+      let added: number | null = null;
+      for (const id of cart) {
+        if (!prevCart.current.has(id)) { added = id; break; }
+      }
+      if (added !== null) {
+        setJustAddedId(added);
+        const t = window.setTimeout(() => setJustAddedId(null), 700);
+        prevCart.current = new Set(cart);
+        return () => window.clearTimeout(t);
+      }
+    }
+    prevCart.current = new Set(cart);
+  }, [cart]);
+
   useEffect(() => {
     if (activeIdx != null && listRef.current) {
       try { listRef.current.scrollToRow({ index: activeIdx, align: 'smart' }); } catch {}
@@ -137,7 +163,7 @@ export default function CellStationList({ erbs, cart, activeIdx, onFocus, onTogg
           rowCount={erbs.length}
           rowHeight={ROW_HEIGHT}
           rowComponent={StationRow}
-          rowProps={{ erbs, cart, activeIdx, onFocus, onToggleCart } satisfies RowData}
+          rowProps={{ erbs, cart, activeIdx, justAddedId, onFocus, onToggleCart } satisfies RowData}
           role="list"
           aria-label="ERBs"
           style={{ height: '100%' }}

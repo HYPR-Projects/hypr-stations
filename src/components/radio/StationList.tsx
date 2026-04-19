@@ -1,4 +1,4 @@
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { List, useListRef } from 'react-window';
 import { formatAudience, estimateRadioAudience } from '../../lib/audience';
 import type { RadioStation } from './radioData';
@@ -13,6 +13,7 @@ interface RowData {
   stations: RadioStation[];
   cart: Set<number>;
   activeIdx: number | null;
+  justAddedSid: number | null;
   onFocus: (i: number) => void;
   onToggleCart: (sid: number) => void;
 }
@@ -20,7 +21,7 @@ interface RowData {
 const ROW_HEIGHT = 88;
 
 const StationRow = memo(function StationRow({
-  index, style, ariaAttributes, stations, cart, activeIdx, onFocus, onToggleCart,
+  index, style, ariaAttributes, stations, cart, activeIdx, justAddedSid, onFocus, onToggleCart,
 }: { index: number; style: React.CSSProperties; ariaAttributes: Record<string, unknown> } & RowData) {
   const s = stations[index];
   if (!s) return null;
@@ -29,6 +30,7 @@ const StationRow = memo(function StationRow({
   const act = activeIdx === index;
   const aud = estimateRadioAudience(s.erp, s.tipo, s.classe, s.uf);
   const isFM = s.tipo === 'FM';
+  const pulse = justAddedSid === s._sid;
 
   // Badge uses CSS vars that auto-adapt to theme
   const badgeFg = isFM ? 'var(--radio-fm-fg)' : 'var(--radio-am-fg)';
@@ -39,7 +41,11 @@ const StationRow = memo(function StationRow({
       <div tabIndex={0}
         onClick={() => onFocus(index)}
         onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onFocus(index); } }}
-        style={{ height: ROW_HEIGHT, boxSizing: 'border-box' }}
+        style={{
+          height: ROW_HEIGHT,
+          boxSizing: 'border-box',
+          animation: pulse ? 'highlightPulse 0.6s cubic-bezier(0.16,1,0.3,1) both' : undefined,
+        }}
         className={`relative px-5 py-[14px] cursor-pointer transition-colors duration-150
           outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent)]
           ${sel ? 'bg-[var(--accent-muted)]' : act ? 'bg-[var(--bg-surface2)]' : 'hover:bg-[var(--hover-bg)]'}`}>
@@ -106,6 +112,29 @@ const StationRow = memo(function StationRow({
 export default function StationList({ stations, cart, activeIdx, onFocus, onToggleCart, onClearCart, onSelectAll, totalCount }: Props) {
   const listRef = useListRef();
 
+  // Track the most recently added sid to trigger a highlight pulse on the
+  // matching row. Clears 600ms later so scrolling past and back doesn't
+  // re-animate. Size delta is enough — sid isn't in state directly but
+  // we detect the "grow" transition via count and the previous cart ref.
+  const prevCart = useRef<Set<number>>(cart);
+  const [justAddedSid, setJustAddedSid] = useState<number | null>(null);
+  useEffect(() => {
+    if (cart.size > prevCart.current.size) {
+      // Find the sid that exists in cart but wasn't in prevCart.
+      let added: number | null = null;
+      for (const sid of cart) {
+        if (!prevCart.current.has(sid)) { added = sid; break; }
+      }
+      if (added !== null) {
+        setJustAddedSid(added);
+        const t = window.setTimeout(() => setJustAddedSid(null), 700);
+        prevCart.current = new Set(cart);
+        return () => window.clearTimeout(t);
+      }
+    }
+    prevCart.current = new Set(cart);
+  }, [cart]);
+
   useEffect(() => {
     if (activeIdx != null && listRef.current) {
       try { listRef.current.scrollToRow({ index: activeIdx, align: 'smart' }); } catch {}
@@ -141,7 +170,7 @@ export default function StationList({ stations, cart, activeIdx, onFocus, onTogg
           rowCount={stations.length}
           rowHeight={ROW_HEIGHT}
           rowComponent={StationRow}
-          rowProps={{ stations, cart, activeIdx, onFocus, onToggleCart } satisfies RowData}
+          rowProps={{ stations, cart, activeIdx, justAddedSid, onFocus, onToggleCart } satisfies RowData}
           role="list"
           aria-label="Estações"
           style={{ height: '100%' }}

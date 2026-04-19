@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Map as MLMap } from 'maplibre-gl';
 import { createPortal } from 'react-dom';
+import { usePresence } from './hooks/usePresence';
 
 /**
  * React-based map popup, positioned via map.project(). Deliberately does NOT
@@ -42,6 +43,10 @@ export default function MapOverlayPopup({
   const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [cardHeight, setCardHeight] = useState<number | null>(null);
+
+  // Presence wrapper — stays mounted for 180ms after lngLat goes null so the
+  // exit transition has time to play. `visible` toggles the visual state.
+  const { mounted, visible } = usePresence(lngLat !== null, 180);
 
   // Reset measured height when the popup opens for a new point.
   useEffect(() => {
@@ -98,7 +103,7 @@ export default function MapOverlayPopup({
     return () => window.removeEventListener('keydown', onKey);
   }, [closeOnEscape, onClose]);
 
-  if (!map || !pos || !lngLat) return null;
+  if (!mounted || !map || !pos) return null;
 
   const TIP_HEIGHT = 8;
   const cardLeft = pos.x;
@@ -107,9 +112,6 @@ export default function MapOverlayPopup({
   // Auto-flip: if there isn't enough room above the anchor to fit the card
   // (plus tip + small safety margin), render below the anchor instead.
   // The tip's direction flips accordingly so it always points AT the pin.
-  //
-  // Space calc: pos.y is viewport-absolute. Space above the anchor within
-  // the visible area = pos.y. Needed = cardHeight + offset + tip + margin.
   const SAFETY_MARGIN = 8;
   const spaceAbove = pos.y;
   const neededAbove = (cardHeight || 0) + offset + TIP_HEIGHT + SAFETY_MARGIN;
@@ -121,6 +123,11 @@ export default function MapOverlayPopup({
     ? pos.y + offset
     : measured ? pos.y - offset - (cardHeight as number) : pos.y - offset;
 
+  // Responsive maxWidth — on narrow viewports shrink to fit with 12px side
+  // padding so the popup never touches the screen edges. `min()` picks the
+  // smaller of the caller's preference and the viewport-relative cap.
+  const responsiveMaxWidth = `min(${maxWidth}px, calc(100vw - 24px))`;
+
   return createPortal(
     <div
       style={{
@@ -129,7 +136,7 @@ export default function MapOverlayPopup({
         top: topPos,
         transform: 'translateX(-50%)',
         zIndex: 1000,
-        maxWidth,
+        maxWidth: responsiveMaxWidth,
         width: 'max-content',
         pointerEvents: 'none',
         visibility: measured ? 'visible' : 'hidden',
@@ -137,6 +144,7 @@ export default function MapOverlayPopup({
     >
       <div
         ref={cardRef}
+        data-visible={visible}
         style={{
           pointerEvents: 'auto',
           background: 'var(--bg-surface)',
@@ -146,6 +154,12 @@ export default function MapOverlayPopup({
           overflow: 'hidden',
           position: 'relative',
           fontFamily: 'Urbanist, system-ui, sans-serif',
+          transition:
+            'opacity 160ms ease, transform 180ms cubic-bezier(0.16,1,0.3,1)',
+          // Scale origin points at the tip so the popup grows FROM the pin.
+          transformOrigin: flipDown ? 'center top' : 'center bottom',
+          opacity: visible ? 1 : 0,
+          transform: visible ? 'scale(1)' : 'scale(0.94)',
         }}
       >
         <button
@@ -186,6 +200,8 @@ export default function MapOverlayPopup({
           transform: 'translateX(-50%)',
           width: 16, height: TIP_HEIGHT,
           pointerEvents: 'none',
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 160ms ease',
         }}
       >
         <svg width={16} height={TIP_HEIGHT} viewBox="0 0 16 8" style={{ display: 'block' }}>

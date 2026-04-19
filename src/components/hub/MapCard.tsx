@@ -73,7 +73,7 @@ export default function MapCard({ name, subtitle, description, icon, href, statu
       className={`group relative flex flex-col h-full rounded-[14px] border-[0.5px] overflow-hidden
                   transition-all duration-300
                   ${isActive
-                    ? 'border-[var(--border)] bg-[var(--bg-surface)] hover:border-[var(--input-border)] hover:translate-y-[-2px] cursor-pointer'
+                    ? 'border-[var(--border)] bg-[var(--bg-surface)] hover:border-[var(--input-border)] hover:translate-y-[-2px] hover:shadow-[0_12px_32px_rgba(0,0,0,0.12)] active:scale-[0.99] active:translate-y-0 cursor-pointer'
                     : 'border-[var(--border)] bg-[var(--bg-surface)] opacity-25 cursor-default'
                   }`}
     >
