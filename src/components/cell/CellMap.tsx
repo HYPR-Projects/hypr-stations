@@ -14,7 +14,7 @@ import CellLegend from './CellLegend';
 import { fetchERBs, getFilterOptions, type ERB } from './cellData';
 import { OPERADORA_COLORS, TECH_COLORS } from '../../lib/constants';
 import { formatAudience, estimateCellAudience, estimateCellRadius } from '../../lib/audience';
-import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, forceRedrawDominance, loadDominanceData, setErbsForDominance, getErbIdsInVisibleHexes, buildHexToErbsMap, getHexCenter, getResolutionForZoom, type DominanceOptions } from './analysisLayers';
+import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, forceRedrawDominance, loadDominanceData, setErbsForDominance, getErbById, getErbIdsInVisibleHexes, buildHexToErbsMap, getHexCenter, getResolutionForZoom, DOMINANCE_LAYER_IDS, type DominanceOptions } from './analysisLayers';
 import { updateCoverageCircles, removeCoverageCircles } from './coverageLayer';
 import { downloadCSV } from '../../lib/csv';
 
@@ -306,8 +306,8 @@ export default function CellMap() {
     });
 
     // Dominance hex interactions — hover, active, click-to-popup
-    const DOM_FILL = 'erb-dominance-fill';
-    const DOM_SRC = 'erb-dominance';
+    const DOM_FILL = DOMINANCE_LAYER_IDS.fill;
+    const DOM_SRC = DOMINANCE_LAYER_IDS.source;
 
     map.on('mousemove', DOM_FILL, (e) => {
       if (!e.features?.length) return;
@@ -346,12 +346,23 @@ export default function CellMap() {
       openHexPopupRef.current?.(feat, e.lngLat);
     });
 
+    // Track the resolution that's currently rendered so we can close an
+    // orphaned popup when a zoom crosses a resolution boundary.
+    let lastRenderedRes = getResolutionForZoom(map.getZoom());
     map.on('zoomend', () => {
       const mode = viewModeRef.current;
       setMapZoom(map.getZoom());
       if (mode === 'pins' && coverageRef.current) {
         updateCoverageCircles(map, filteredRef.current, true);
       } else if (mode === 'dominance') {
+        const newRes = getResolutionForZoom(map.getZoom());
+        if (newRes !== lastRenderedRes) {
+          // Hex under the old popup no longer exists in the new source
+          if (popupRef.current) popupRef.current.remove();
+          activeHexRef.current = null;
+          hoveredHexRef.current = null;
+          lastRenderedRes = newRes;
+        }
         updateDominanceForZoom(map, domOptsRef.current);
       }
     });
@@ -490,7 +501,7 @@ export default function CellMap() {
     const erbIds = hexMap.get(h3Id) || [];
     if (!erbIds.length) return 0;
 
-    const erbById = new Map(allErbs.map(e => [e.id, e]));
+    const erbById = getErbById(allErbs); // cached — reused across calls
     const techFilter = opts.techFilter && opts.techFilter !== 'all' ? opts.techFilter : null;
     const opFilter = opts.focusOp; // cart default: only focus operator
 
@@ -511,12 +522,23 @@ export default function CellMap() {
 
 
   // Drill-down to a deeper resolution. Centers map on the hex and zooms in.
+  // Zoom targets land mid-range of each resolution band:
+  //   from r3 (z<6) -> 7.2 (r4)
+  //   from r4 (z<8) -> 9.2 (r5)
+  //   from r5 (z<10)-> 10.5 (r6)
+  //   from r6 (z<12)-> 12.5 (r7)
+  //   from r7 (z>=12): button hidden, no op
   const handleDrillZoom = useCallback((h3Id: string) => {
     const map = mapRef.current;
     if (!map) return;
     const [lng, lat] = getHexCenter(h3Id);
     const z = map.getZoom();
-    const targetZoom = z < 6 ? 7.2 : z < 8 ? 9.2 : Math.min(z + 2, 12);
+    let targetZoom: number;
+    if (z < 6) targetZoom = 7.2;
+    else if (z < 8) targetZoom = 9.2;
+    else if (z < 10) targetZoom = 10.5;
+    else if (z < 12) targetZoom = 12.5;
+    else return;
     map.flyTo({ center: [lng, lat], zoom: targetZoom, speed: 1.2 });
     if (popupRef.current) popupRef.current.remove();
   }, []);
@@ -594,9 +616,10 @@ export default function CellMap() {
       </div>`;
     }).join('');
 
-    // Drill-down button only shown below max resolution (r5 = zoom 8+)
+    // Drill-down button shown while there's a deeper resolution to descend to
+    // (r3 -> r4 -> r5 -> r6 -> r7). Hidden once user is already at r7 (z >= 12).
     const z = map.getZoom();
-    const showDrill = z < 8;
+    const showDrill = z < 12;
 
     const html = `<div style="font-family:Urbanist,system-ui,sans-serif;min-width:280px;background:var(--bg-surface);color:var(--text-primary);border-radius:12px;overflow:hidden">
       <div style="padding:16px 18px 12px">
@@ -648,18 +671,17 @@ export default function CellMap() {
       popupRef.current = null;
       // Clear active state on the hex that was highlighted
       const mm = mapRef.current;
-      if (mm && activeHexRef.current && mm.getSource('erb-dominance')) {
-        try { mm.setFeatureState({ source: 'erb-dominance', id: activeHexRef.current }, { active: false }); } catch {}
+      if (mm && activeHexRef.current && mm.getSource(DOMINANCE_LAYER_IDS.source)) {
+        try { mm.setFeatureState({ source: DOMINANCE_LAYER_IDS.source, id: activeHexRef.current }, { active: false }); } catch {}
         activeHexRef.current = null;
       }
     });
   }, [handleAddHexToCart, handleDrillZoom]);
 
   // Keep ref pointed at the latest openHexPopup so the one-time click handler
-  // registered in onMapReady always calls the current version.
-  useEffect(() => {
-    openHexPopupRef.current = openHexPopup;
-  }, [openHexPopup]);
+  // registered in onMapReady always calls the current version. Synced in render
+  // body (not useEffect) so the ref is up-to-date before any event fires.
+  openHexPopupRef.current = openHexPopup;
 
 
   const onFilter = useCallback((nf: ERB[]) => { setFiltered(nf); }, []);

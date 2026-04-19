@@ -52,6 +52,14 @@ const DOM_FILL = 'erb-dominance-fill';
 const DOM_LINE = 'erb-dominance-line';
 const DOM_LABEL = 'erb-dominance-label';
 
+// Exported so CellMap handlers can reference the same IDs without drift
+export const DOMINANCE_LAYER_IDS = {
+  source: DOM_SOURCE,
+  fill: DOM_FILL,
+  line: DOM_LINE,
+  label: DOM_LABEL,
+} as const;
+
 export interface HexRaw {
   h: string;           // h3 index
   c: number[][];       // coordinates ring [lng, lat]
@@ -110,13 +118,30 @@ let _domLoading: Promise<DominanceData | null> | null = null;
 // ERBs injected by CellMap — needed for runtime hex computation at r6/r7
 let _erbsForDominance: ERB[] | null = null;
 
+// Id -> ERB index, cached. Built once by setErbsForDominance. Used by any
+// helper that needs to resolve ERB ids back to full records (handleAddHexToCart,
+// getErbIdsInVisibleHexes). Avoids rebuilding a 109K-entry Map per call.
+let _erbById: Map<number, ERB> | null = null;
+
 // Runtime hex cache keyed by `${techFilter}-r${resolution}`. Cleared when
 // ERBs change (i.e. only after full reload of erb.json).
 const _runtimeHexes: Map<string, HexRaw[]> = new Map();
 
 export function setErbsForDominance(erbs: ERB[]): void {
   _erbsForDominance = erbs;
+  _erbById = new Map(erbs.map(e => [e.id, e]));
   _runtimeHexes.clear();
+}
+
+// Fast lookup by ERB id. Falls back to building from the given erbs list if
+// the cache hasn't been populated yet (early calls before load completes).
+export function getErbById(fallback?: ERB[]): Map<number, ERB> {
+  if (_erbById) return _erbById;
+  if (fallback?.length) {
+    _erbById = new Map(fallback.map(e => [e.id, e]));
+    return _erbById;
+  }
+  return new Map();
 }
 
 // Unified resolution picker. Lower number = bigger hex; higher = finer detail.
@@ -519,7 +544,7 @@ export function getErbIdsInVisibleHexes(
   if (!needsTechFilter && !needsOpFilter) return Array.from(ids);
 
   const opSet = needsOpFilter ? new Set(operatorFilter) : null;
-  const erbById = new Map(erbs.map(e => [e.id, e]));
+  const erbById = getErbById(erbs);
   const filtered: number[] = [];
   for (const id of ids) {
     const e = erbById.get(id);
