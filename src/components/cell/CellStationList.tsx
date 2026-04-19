@@ -48,16 +48,19 @@ const StationRow = memo(function StationRow({
       <div tabIndex={0}
         onClick={() => onFocus(index)}
         onKeyDown={ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onFocus(index); } }}
-        style={{ height: ROW_HEIGHT }}
+        style={{ height: ROW_HEIGHT, boxSizing: 'border-box' }}
         className={`relative px-5 py-[14px] cursor-pointer transition-colors duration-150
           outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--accent)]
-          border-b-[0.5px] border-solid border-[var(--border-hover)]
           ${sel ? 'bg-[var(--accent-muted)]' : act ? 'bg-[var(--bg-surface2)]' : 'hover:bg-[var(--hover-bg)]'}`}>
+
+        {/* Separator — absolute, edge-to-edge, doesn't affect box-model */}
+        <span aria-hidden="true"
+          className="absolute left-0 right-0 bottom-0 h-px bg-[var(--border-hover)] pointer-events-none" />
 
         {/* Accent bar for selected state */}
         {sel && (
           <span aria-hidden="true"
-            className="absolute left-0 top-0 bottom-0 w-[3px] bg-[var(--accent)]" />
+            className="absolute left-0 top-0 bottom-0 w-[3px] bg-[var(--accent)] pointer-events-none" />
         )}
 
         <div className="flex gap-3 items-start">
