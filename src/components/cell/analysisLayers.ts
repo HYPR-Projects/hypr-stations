@@ -53,7 +53,7 @@ const DOM_LABEL = 'erb-dominance-label';
 
 import { cellToBoundary } from 'h3-js';
 
-interface HexRaw {
+export interface HexRaw {
   h: string;           // h3 index
   c: number[][];       // coordinates ring [lng, lat]
   d: string;           // dominant operator
@@ -333,4 +333,11 @@ export function getOperatorFocusStats(op: string, techFilter: 'all' | '5G' | '4G
 
   const totalRegs = hexes.length;
   return { wins, contested, absent, totalRegs, topRival, topRivalGap, pctDomination: totalRegs > 0 ? Math.round(wins / totalRegs * 100) : 0 };
+}
+
+// Raw hex accessor — used by DominancePanel for pair-mode counting to stay
+// consistent with the layer's own classification logic.
+export function getDominanceHexes(techFilter: 'all' | '5G' | '4G' = 'all', resolution = 'r4'): HexRaw[] {
+  if (!_domData) return [];
+  return _domData[techFilter]?.[resolution] || [];
 }

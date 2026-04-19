@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { OPERADORA_COLORS } from '../../lib/constants';
-import { getDominanceStats, getOperatorFocusStats } from './analysisLayers';
+import { getDominanceStats, getOperatorFocusStats, getDominanceHexes, computeHexStatus } from './analysisLayers';
 import type { DominanceOptions, DominanceStatus } from './analysisLayers';
 
 interface Props {
@@ -21,7 +21,10 @@ function isDark() {
 export default function DominancePanel({ zoom, onOptionsChange }: Props) {
   const [techFilter, setTechFilter] = useState<'all' | '5G' | '4G'>('all');
   const [focusOp, setFocusOp] = useState<string | null>(null);
+  const [rivalOp, setRivalOp] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<Set<DominanceStatus>>(new Set());
+  const [rivalPickerOpen, setRivalPickerOpen] = useState(false);
+  const rivalPickerRef = useRef<HTMLDivElement>(null);
 
   const dark = isDark();
   const bg = dark ? 'rgba(15, 20, 25, 0.97)' : 'rgba(255, 255, 255, 0.97)';
@@ -36,15 +39,30 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
   const resKey = zoom < 6 ? 'r3' : zoom < 8 ? 'r4' : 'r5';
   const stats = useMemo(() => getDominanceStats(techFilter, resKey), [techFilter, resKey]);
   const focusStats = useMemo(() => focusOp ? getOperatorFocusStats(focusOp, techFilter, resKey) : null, [focusOp, techFilter, resKey]);
+  const pairCounts = useMemo(
+    () => focusOp && rivalOp ? getPairFocusCounts(focusOp, rivalOp, techFilter, resKey) : null,
+    [focusOp, rivalOp, techFilter, resKey]
+  );
+
+  // Close rival picker on outside click
+  useEffect(() => {
+    if (!rivalPickerOpen) return;
+    const h = (e: MouseEvent) => {
+      if (!rivalPickerRef.current?.contains(e.target as Node)) setRivalPickerOpen(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [rivalPickerOpen]);
 
   const emit = useCallback((overrides: Partial<DominanceOptions> = {}) => {
     onOptionsChange({
       techFilter,
       focusOp,
+      rivalOp,
       statusFilter: Array.from(statusFilter),
       ...overrides,
     });
-  }, [techFilter, focusOp, statusFilter, onOptionsChange]);
+  }, [techFilter, focusOp, rivalOp, statusFilter, onOptionsChange]);
 
   const handleTechChange = useCallback((t: 'all' | '5G' | '4G') => {
     setTechFilter(t);
@@ -54,10 +72,19 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
   const handleFocusOp = useCallback((op: string) => {
     const next = focusOp === op ? null : op;
     setFocusOp(next);
-    // Reset status filter when focus changes
     setStatusFilter(new Set());
-    emit({ focusOp: next, statusFilter: [] });
-  }, [focusOp, emit]);
+    // Clear rival if it equals the new focus
+    const nextRival = next === rivalOp ? null : rivalOp;
+    if (nextRival !== rivalOp) setRivalOp(nextRival);
+    if (!next) setRivalOp(null);
+    emit({ focusOp: next, statusFilter: [], rivalOp: next ? nextRival : null });
+  }, [focusOp, rivalOp, emit]);
+
+  const handleRivalPick = useCallback((op: string | null) => {
+    setRivalOp(op);
+    setRivalPickerOpen(false);
+    emit({ rivalOp: op });
+  }, [emit]);
 
   const toggleStatus = useCallback((s: DominanceStatus) => {
     const n = new Set(statusFilter);
@@ -68,17 +95,36 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
 
   if (!stats.byOperator.length) return null;
 
-  // Status box config — same order, same colors, same labels (solo mode)
-  const STATUS_CONFIG: { key: DominanceStatus; color: string; bgColor: string; label: string; count: number }[] = focusStats ? [
-    { key: 'wins', color: '#5cb87a', bgColor: 'rgba(92,184,122,0.1)', label: 'Domina', count: focusStats.wins },
-    { key: 'contested', color: '#e88a4a', bgColor: 'rgba(232,138,74,0.1)', label: 'Disputa', count: focusStats.contested },
-    { key: 'absent', color: '#e85454', bgColor: 'rgba(232,84,84,0.1)', label: 'Ausente', count: focusStats.absent },
-  ] : [];
+  // Compute pair counts on demand (iterate stats.byOperator is not enough — we need hex-level classification)
+  // Uses the same computeHexStatus that the layer uses, giving consistent results.
+  const displayCounts = (() => {
+    if (!focusOp) return { wins: 0, contested: 0, absent: 0 };
+    if (!rivalOp || !pairCounts) {
+      return {
+        wins: focusStats?.wins ?? 0,
+        contested: focusStats?.contested ?? 0,
+        absent: focusStats?.absent ?? 0,
+      };
+    }
+    return pairCounts;
+  })();
+
+  const inPairMode = !!(focusOp && rivalOp);
+  const labels = inPairMode
+    ? { wins: 'Vence', contested: 'Empate', absent: 'Perde' }
+    : { wins: 'Domina', contested: 'Disputa', absent: 'Ausente' };
+
+  const STATUS_CONFIG: { key: DominanceStatus; color: string; bgColor: string }[] = [
+    { key: 'wins', color: '#5cb87a', bgColor: 'rgba(92,184,122,0.1)' },
+    { key: 'contested', color: '#e88a4a', bgColor: 'rgba(232,138,74,0.1)' },
+    { key: 'absent', color: '#e85454', bgColor: 'rgba(232,84,84,0.1)' },
+  ];
 
   const hasStatusFilter = statusFilter.size > 0;
+  const rivalCandidates = stats.byOperator.filter(o => o.op !== focusOp);
 
   return (
-    <div className="absolute top-16 right-3.5 z-10 w-[250px] rounded-[12px] overflow-hidden"
+    <div className="absolute top-16 right-3.5 z-10 w-[260px] rounded-[12px] overflow-hidden"
       style={{ background: bg, boxShadow: shadow, border: `0.5px solid ${border}` }}>
 
       {/* Tech filter */}
@@ -94,10 +140,18 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
         ))}
       </div>
 
-      {/* Header */}
+      {/* Header — shows focus + rival when in pair mode */}
       <div className="px-3.5 py-2.5" style={{ borderBottom: `0.5px solid ${border}` }}>
         <div className="text-[10px] tracking-[0.04em] uppercase" style={{ color: textFaint }}>
-          {focusOp ? `Foco: ${focusOp}` : 'Dominância por região'}
+          {focusOp ? (
+            inPairMode ? (
+              <span>
+                <span style={{ color: OPERADORA_COLORS[focusOp] }}>{focusOp}</span>
+                <span style={{ color: textFaint }}> vs </span>
+                <span style={{ color: OPERADORA_COLORS[rivalOp!] }}>{rivalOp}</span>
+              </span>
+            ) : `Foco: ${focusOp}`
+          ) : 'Dominância por região'}
         </div>
         <div className="text-[11px] mt-0.5" style={{ color: textSecondary }}>
           {stats.totalHexes.toLocaleString('pt-BR')} regiões · {stats.totalErbs.toLocaleString('pt-BR')} ERBs
@@ -105,7 +159,7 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
       </div>
 
       {/* Operator list */}
-      <div className="px-2 py-2 flex flex-col gap-0.5 max-h-[280px] overflow-y-auto">
+      <div className="px-2 py-2 flex flex-col gap-0.5 max-h-[240px] overflow-y-auto">
         {stats.byOperator.map(o => {
           const color = OPERADORA_COLORS[o.op] || OPERADORA_COLORS['Outras'];
           const isFocused = focusOp === o.op;
@@ -129,19 +183,76 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
         })}
       </div>
 
+      {/* Rival selector — visible when focus is set */}
+      {focusOp && (
+        <div className="px-3 py-2.5 relative" style={{ borderTop: `0.5px solid ${border}` }} ref={rivalPickerRef}>
+          {inPairMode ? (
+            <button
+              type="button"
+              onClick={() => handleRivalPick(null)}
+              className="flex items-center gap-2 text-[11px] font-medium cursor-pointer bg-transparent border-0 outline-none p-0 hover:opacity-70 transition-opacity"
+              style={{ color: textSecondary }}
+              aria-label="Remover comparação com rival">
+              <span>Comparando com <strong style={{ color: OPERADORA_COLORS[rivalOp!] }}>{rivalOp}</strong></span>
+              <span className="text-[var(--text-faint)]" style={{ color: textFaint, fontSize: 14 }}>×</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setRivalPickerOpen(!rivalPickerOpen)}
+              className="flex items-center gap-1.5 text-[11px] font-medium cursor-pointer bg-transparent border-0 outline-none p-0 hover:opacity-70 transition-opacity"
+              style={{ color: textSecondary }}
+              aria-expanded={rivalPickerOpen}
+              aria-haspopup="listbox">
+              <span>+ Comparar com…</span>
+              <svg width="8" height="5" viewBox="0 0 8 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-150 ${rivalPickerOpen ? 'rotate-180' : ''}`}>
+                <path d="M1 1l3 3 3-3" />
+              </svg>
+            </button>
+          )}
+
+          {/* Rival picker dropdown */}
+          {rivalPickerOpen && !inPairMode && (
+            <div
+              className="absolute left-3 right-3 top-full mt-1 rounded-[8px] overflow-hidden z-10"
+              style={{
+                background: bg,
+                border: `0.5px solid ${border}`,
+                boxShadow: shadow,
+              }}>
+              <div className="max-h-[180px] overflow-y-auto">
+                {rivalCandidates.map(o => {
+                  const color = OPERADORA_COLORS[o.op] || OPERADORA_COLORS['Outras'];
+                  return (
+                    <button key={o.op} type="button" onClick={() => handleRivalPick(o.op)}
+                      className="flex items-center gap-2.5 px-3 py-2 w-full text-left cursor-pointer bg-transparent border-0 outline-none hover:bg-[var(--hover-bg)] transition-colors duration-150"
+                      style={{ color: textPrimary }}>
+                      <span className="w-[7px] h-[7px] rounded-full shrink-0" style={{ background: color }} />
+                      <span className="text-[12px] font-medium flex-1">{o.op}</span>
+                      <span className="text-[10px]" style={{ color: textFaint }}>{o.hexCount} reg.</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Focus stats — 3 clickable status filters */}
-      {focusStats && focusOp && (
+      {focusOp && (
         <div className="px-3 py-3" style={{ borderTop: `0.5px solid ${border}` }}>
           <div className="flex gap-1.5 mb-2.5">
             {STATUS_CONFIG.map(s => {
               const active = statusFilter.has(s.key);
               const dimmed = hasStatusFilter && !active;
+              const count = displayCounts[s.key];
               return (
                 <button key={s.key}
                   onClick={() => toggleStatus(s.key)}
                   role="checkbox"
                   aria-checked={active}
-                  aria-label={`Filtrar por ${s.label}: ${s.count} regiões`}
+                  aria-label={`Filtrar por ${labels[s.key]}: ${count} regiões`}
                   className="flex-1 rounded-[8px] py-2 text-center cursor-pointer border-0 outline-none
                              transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                   style={{
@@ -150,8 +261,8 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
                     opacity: dimmed ? 0.4 : 1,
                     boxShadow: active ? `0 0 0 2px ${s.color}20` : 'none',
                   }}>
-                  <div className="text-[16px] font-bold leading-none" style={{ color: s.color }}>{s.count}</div>
-                  <div className="text-[9px] tracking-[0.04em] uppercase mt-1" style={{ color: textFaint }}>{s.label}</div>
+                  <div className="text-[16px] font-bold leading-none" style={{ color: s.color }}>{count}</div>
+                  <div className="text-[9px] tracking-[0.04em] uppercase mt-1" style={{ color: textFaint }}>{labels[s.key]}</div>
                 </button>
               );
             })}
@@ -167,19 +278,27 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
             </button>
           )}
           <div className="text-[11px]" style={{ color: textSecondary }}>
-            <strong style={{ color: textPrimary }}>{focusStats.pctDomination}%</strong> de domínio territorial
+            {inPairMode ? (
+              <>
+                <strong style={{ color: textPrimary }}>{pctWins(displayCounts)}%</strong> de vantagem territorial
+              </>
+            ) : (
+              <>
+                <strong style={{ color: textPrimary }}>{focusStats?.pctDomination ?? 0}%</strong> de domínio territorial
+              </>
+            )}
           </div>
-          {focusStats.topRival && (
+          {!inPairMode && focusStats?.topRival && (
             <div className="text-[11px] mt-1" style={{ color: textSecondary }}>
               Maior rival: <span style={{ color: OPERADORA_COLORS[focusStats.topRival] || '#7a6e64', fontWeight: 600 }}>{focusStats.topRival}</span>
             </div>
           )}
           <div className="flex items-center gap-1.5 mt-3">
-            <span className="text-[9px]" style={{ color: textFaint }}>Ausente</span>
+            <span className="text-[9px]" style={{ color: textFaint }}>{inPairMode ? 'Perde' : 'Ausente'}</span>
             <div className="flex-1 h-[4px] rounded-full" style={{
               background: 'linear-gradient(to right, #e85454, #e88a4a, transparent, #5cb87a)'
             }} />
-            <span className="text-[9px]" style={{ color: textFaint }}>Domina</span>
+            <span className="text-[9px]" style={{ color: textFaint }}>{inPairMode ? 'Vence' : 'Domina'}</span>
           </div>
         </div>
       )}
@@ -193,4 +312,26 @@ export default function DominancePanel({ zoom, onOptionsChange }: Props) {
       )}
     </div>
   );
+}
+
+function pctWins(counts: { wins: number; contested: number; absent: number }): number {
+  const total = counts.wins + counts.contested + counts.absent;
+  return total > 0 ? Math.round((counts.wins / total) * 100) : 0;
+}
+
+function getPairFocusCounts(
+  focusOp: string,
+  rivalOp: string,
+  techFilter: 'all' | '5G' | '4G',
+  resKey: string
+): { wins: number; contested: number; absent: number } {
+  const hexes = getDominanceHexes(techFilter, resKey);
+  let wins = 0, contested = 0, absent = 0;
+  for (const h of hexes) {
+    const s = computeHexStatus(h, focusOp, rivalOp);
+    if (s === 'wins') wins++;
+    else if (s === 'contested') contested++;
+    else absent++;
+  }
+  return { wins, contested, absent };
 }
