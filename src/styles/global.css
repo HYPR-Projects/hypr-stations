@@ -362,3 +362,35 @@ html.theme-switching *::after {
   color: var(--text-primary) !important;
 }
 .maplibregl-ctrl-attrib { display: none !important; }
+
+/* Astro View Transitions — smooth crossfade between pages. */
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+::view-transition-old(root) {
+  animation-name: vtFadeOut;
+}
+::view-transition-new(root) {
+  animation-name: vtFadeIn;
+}
+
+@keyframes vtFadeOut {
+  to { opacity: 0; }
+}
+@keyframes vtFadeIn {
+  from { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms;
+  }
+}

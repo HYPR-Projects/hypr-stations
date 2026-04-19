@@ -48,6 +48,15 @@ export default function MapOverlayPopup({
   // exit transition has time to play. `visible` toggles the visual state.
   const { mounted, visible } = usePresence(lngLat !== null, 180);
 
+  // Cache the last non-empty children so the popup keeps its content while
+  // fading out. Consumers typically render `{popup && <Content .../>}` which
+  // yields `false` the moment lngLat goes null — without this cache the
+  // popup card would go blank for the 180ms exit window.
+  const [cachedChildren, setCachedChildren] = useState<React.ReactNode>(children);
+  useEffect(() => {
+    if (children) setCachedChildren(children);
+  }, [children]);
+
   // Reset measured height when the popup opens for a new point.
   useEffect(() => {
     if (lngLat) setCardHeight(null);
@@ -187,7 +196,7 @@ export default function MapOverlayPopup({
             (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
           }}
         >×</button>
-        {children}
+        {cachedChildren}
       </div>
 
       {/* Tip (chevron). Points down at anchor when card is above;

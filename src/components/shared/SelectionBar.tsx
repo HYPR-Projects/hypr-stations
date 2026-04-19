@@ -54,11 +54,16 @@ export default function SelectionBar({
     prevCount.current = count;
   }, [count]);
 
-  // Report height to parent via ResizeObserver — covers px-5 vs md:px-7,
-  // desktop-vs-mobile swap, orientation change, safe-area, etc.
+  // Report height to parent via ResizeObserver.
+  // Desktop: bar is full-width at the bottom, overlays need to reserve its
+  // height (via selectionBarHeight + 14 formula in consumers).
+  // Mobile: pill is floating-centered above the tab bar; it doesn't share
+  // vertical space with overlays (which live at left-3.5 / right-3.5).
+  // Report 0 on mobile so Legend/Raios don't get shoved upward unnecessarily
+  // — --bottom-safe already handles the tab bar clearance.
   useLayoutEffect(() => {
     if (!onHeightChange) return;
-    if (!mounted) {
+    if (!mounted || !isDesktop) {
       if (lastReported.current !== 0) {
         lastReported.current = 0;
         onHeightChange(0);

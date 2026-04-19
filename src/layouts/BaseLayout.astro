@@ -1,4 +1,5 @@
 ---
+import '../styles/global.css';
 import { ClientRouter } from 'astro:transitions';
 
 interface Props {
@@ -46,7 +47,8 @@ const {
   <link rel="preload" href="/fonts/urbanist-latin-ext.woff2" as="font" type="font/woff2" crossorigin />
 
   <!-- Theme: apply before paint to avoid flash. Runs on initial load AND
-       after astro:after-swap so the class survives View Transitions. -->
+       after astro:after-swap so the class survives View Transitions. The
+       listener is guarded against double-registration via a global flag. -->
   <script is:inline>
     (function () {
       const apply = () => {
@@ -55,50 +57,12 @@ const {
         else document.documentElement.classList.remove('light');
       };
       apply();
-      document.addEventListener('astro:after-swap', apply);
+      if (!window.__hyprThemeHook) {
+        window.__hyprThemeHook = true;
+        document.addEventListener('astro:after-swap', apply);
+      }
     })();
   </script>
-
-  <!-- Global CSS (Tailwind + tokens) -->
-  <style>
-    @import '../styles/global.css';
-
-    /* View transition names — smooth crossfade between pages. Map pages
-       (fullscreen) get a slightly longer fade so the map canvas re-hydrates
-       gracefully. The default Astro transition is instant-swap; overriding
-       the root name gives us a single fade. */
-    @view-transition {
-      navigation: auto;
-    }
-
-    ::view-transition-old(root),
-    ::view-transition-new(root) {
-      animation-duration: 220ms;
-      animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
-    }
-
-    ::view-transition-old(root) {
-      animation-name: vtFadeOut;
-    }
-    ::view-transition-new(root) {
-      animation-name: vtFadeIn;
-    }
-
-    @keyframes vtFadeOut {
-      to { opacity: 0; }
-    }
-    @keyframes vtFadeIn {
-      from { opacity: 0; }
-    }
-
-    /* Respect reduced-motion for page transitions too. */
-    @media (prefers-reduced-motion: reduce) {
-      ::view-transition-old(root),
-      ::view-transition-new(root) {
-        animation-duration: 0.01ms;
-      }
-    }
-  </style>
 
   <ClientRouter />
 
