@@ -32,7 +32,7 @@ export default function SelectionBar({ count, summary, onCheckout, onDownload, c
         {canDownload && onDownload && (
           <button
             onClick={onDownload}
-            aria-label="Exportar seleção como CSV"
+            aria-label="Exportar base de endereços selecionados"
             className="flex items-center gap-1.5 px-5 py-2.5 rounded-[10px]
                        text-[12px] font-semibold transition-all duration-200 cursor-pointer
                        bg-transparent text-[var(--accent)] outline-none
@@ -44,7 +44,7 @@ export default function SelectionBar({ count, summary, onCheckout, onDownload, c
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            CSV
+            Exportar base
           </button>
         )}
         <button
