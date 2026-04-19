@@ -12,9 +12,14 @@ import { usePresence } from './hooks/usePresence';
  * local coordinate space (origin = top-left of the map canvas). We render
  * the popup via portal to document.body with position:fixed, converting
  * container-local coords to viewport coords by adding the container's
- * bounding rect. This keeps the popup free to escape the map container's
- * overflow:hidden — a pin near the top edge of the map won't have its
- * popup clipped.
+ * bounding rect.
+ *
+ * Animation: entrance scales from the tip (origin flips with the popup's
+ * above/below position) and fades. Exit is the reverse and runs for 180ms
+ * after lngLat goes null — the usePresence hook keeps the component mounted
+ * during that window. We intentionally stop rendering the card as soon as
+ * lngLat is null (only the wrapper lingers, invisible) so consumers never
+ * see stale content tied to a station that's no longer selected.
  *
  * Close behavior: Escape only. Dismissal via clicking empty map is the
  * caller's job — MapLibre dispatches layer-filtered click handlers before
@@ -48,15 +53,6 @@ export default function MapOverlayPopup({
   // exit transition has time to play. `visible` toggles the visual state.
   const { mounted, visible } = usePresence(lngLat !== null, 180);
 
-  // Cache the last non-empty children so the popup keeps its content while
-  // fading out. Consumers typically render `{popup && <Content .../>}` which
-  // yields `false` the moment lngLat goes null — without this cache the
-  // popup card would go blank for the 180ms exit window.
-  const [cachedChildren, setCachedChildren] = useState<React.ReactNode>(children);
-  useEffect(() => {
-    if (children) setCachedChildren(children);
-  }, [children]);
-
   // Reset measured height when the popup opens for a new point.
   useEffect(() => {
     if (lngLat) setCardHeight(null);
@@ -74,15 +70,23 @@ export default function MapOverlayPopup({
   }, [children, pos]);
 
   // Sync screen position with the map on every frame.
-  // Convert container-local project() coords to viewport coords by
-  // adding the container's bounding rect offset.
+  // Wrapped in try/catch so transient failures (e.g. map container already
+  // detached during rapid navigation) don't bubble up to the ErrorBoundary.
   useEffect(() => {
     if (!map || !lngLat) { setPos(null); return; }
 
     const project = () => {
-      const local = map.project(lngLat);
-      const rect = map.getContainer().getBoundingClientRect();
-      setPos({ x: local.x + rect.left, y: local.y + rect.top });
+      try {
+        const container = map.getContainer();
+        if (!container) return;
+        const local = map.project(lngLat);
+        const rect = container.getBoundingClientRect();
+        setPos({ x: local.x + rect.left, y: local.y + rect.top });
+      } catch (err) {
+        // Swallow — a single dropped projection frame is acceptable. The
+        // next map event will re-project from a healthy state.
+        console.warn('[MapOverlayPopup] project failed', err);
+      }
     };
     project();
 
@@ -90,15 +94,15 @@ export default function MapOverlayPopup({
     map.on('zoom', project);
     map.on('rotate', project);
     map.on('pitch', project);
-    // Also on window resize/scroll, the container's viewport offset
-    // can change even though its content doesn't move. Cheap to refresh.
     window.addEventListener('resize', project);
     window.addEventListener('scroll', project, true);
     return () => {
-      map.off('move', project);
-      map.off('zoom', project);
-      map.off('rotate', project);
-      map.off('pitch', project);
+      try {
+        map.off('move', project);
+        map.off('zoom', project);
+        map.off('rotate', project);
+        map.off('pitch', project);
+      } catch {}
       window.removeEventListener('resize', project);
       window.removeEventListener('scroll', project, true);
     };
@@ -112,6 +116,9 @@ export default function MapOverlayPopup({
     return () => window.removeEventListener('keydown', onKey);
   }, [closeOnEscape, onClose]);
 
+  // Early return: unmounted, or missing the bits we need to place the card.
+  // We deliberately do NOT gate on `children` — a caller that passes null
+  // temporarily (e.g. while data loads) should still get the mounted shell.
   if (!mounted || !map || !pos) return null;
 
   const TIP_HEIGHT = 8;
@@ -133,8 +140,7 @@ export default function MapOverlayPopup({
     : measured ? pos.y - offset - (cardHeight as number) : pos.y - offset;
 
   // Responsive maxWidth — on narrow viewports shrink to fit with 12px side
-  // padding so the popup never touches the screen edges. `min()` picks the
-  // smaller of the caller's preference and the viewport-relative cap.
+  // padding so the popup never touches the screen edges.
   const responsiveMaxWidth = `min(${maxWidth}px, calc(100vw - 24px))`;
 
   return createPortal(
@@ -153,7 +159,6 @@ export default function MapOverlayPopup({
     >
       <div
         ref={cardRef}
-        data-visible={visible}
         style={{
           pointerEvents: 'auto',
           background: 'var(--bg-surface)',
@@ -165,7 +170,6 @@ export default function MapOverlayPopup({
           fontFamily: 'Urbanist, system-ui, sans-serif',
           transition:
             'opacity 160ms ease, transform 180ms cubic-bezier(0.16,1,0.3,1)',
-          // Scale origin points at the tip so the popup grows FROM the pin.
           transformOrigin: flipDown ? 'center top' : 'center bottom',
           opacity: visible ? 1 : 0,
           transform: visible ? 'scale(1)' : 'scale(0.94)',
@@ -196,7 +200,7 @@ export default function MapOverlayPopup({
             (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)';
           }}
         >×</button>
-        {cachedChildren}
+        {children}
       </div>
 
       {/* Tip (chevron). Points down at anchor when card is above;
