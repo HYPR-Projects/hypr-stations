@@ -11,6 +11,7 @@ import MobileDrawer from '../shared/MobileDrawer';
 import ViewModeSelector from './ViewModeSelector';
 import DominancePanel from './DominancePanel';
 import CellLegend from './CellLegend';
+import HexSelectionBar from './HexSelectionBar';
 import MapOverlayPopup from '../shared/MapOverlayPopup';
 import ErbPinPopupContent from './ErbPinPopupContent';
 import HexPopupContent, { type HexPopupData } from './HexPopupContent';
@@ -18,7 +19,7 @@ import { fetchERBs, getFilterOptions, type ERB } from './cellData';
 import { OPERADORA_COLORS } from '../../lib/constants';
 import { formatAudience, estimateCellAudience, estimateCellRadius } from '../../lib/audience';
 import { preloadMunDensity } from '../../lib/munDensity';
-import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, forceRedrawDominance, loadDominanceData, setErbsForDominance, getErbById, getErbIdsInVisibleHexes, buildHexToErbsMap, getHexCenter, getResolutionForZoom, DOMINANCE_LAYER_IDS, type DominanceOptions } from './analysisLayers';
+import { addHeatmapLayer, removeHeatmapLayer, addDominanceLayer, removeDominanceLayer, updateDominanceForZoom, forceRedrawDominance, loadDominanceData, setErbsForDominance, getErbById, getErbIdsInVisibleHexes, getErbIdsInHexSet, buildHexToErbsMap, getHexCenter, getResolutionForZoom, DOMINANCE_LAYER_IDS, type DominanceOptions } from './analysisLayers';
 import { updateCoverageCircles, removeCoverageCircles } from './coverageLayer';
 import { downloadCSV } from '../../lib/csv';
 
@@ -65,6 +66,13 @@ export default function CellMap() {
   const [hexPopup, setHexPopup] = useState<{ data: HexPopupData; lngLat: [number, number]; showDrill: boolean } | null>(null);
   const activeHexRef = useRef<string | null>(null);
   const hoveredHexRef = useRef<string | null>(null);
+  // Multi-select for Dominance view — set of h3 hex IDs the user has
+  // collected via shift+click (and, in commit 2, shift+drag marquee).
+  // Independent from `cart` (which holds ERB IDs); the selection is a
+  // staging area, user commits to the cart via "Adicionar todas ao plano".
+  // Cleared on Escape, on view-mode change, and when zoom crosses a
+  // resolution boundary (hex IDs become stale across resolutions).
+  const [selectedHexes, setSelectedHexes] = useState<Set<string>>(() => new Set());
   // onMapReady registers click handlers only once per map instance. The
   // handler calls openHexPopup via ref so it always invokes the current
   // closure (openHexPopup depends on nothing now, but keeping the ref
@@ -363,7 +371,22 @@ export default function CellMap() {
       const id = feat.id as string | undefined;
       if (!id) return;
 
-      // Clear previous active state
+      // Shift+click toggles membership in the multi-select staging set.
+      // We intentionally do NOT open the popup in this path — the popup is
+      // a "tell me about this hex" affordance, shift+click is "add/remove
+      // from my selection". Mixing them would force a user to dismiss the
+      // popup each time they build a multi-region plan.
+      if (e.originalEvent.shiftKey) {
+        setSelectedHexes(prev => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        });
+        return;
+      }
+
+      // Normal click: one-at-a-time popup behavior (unchanged).
       if (activeHexRef.current && activeHexRef.current !== id) {
         try { map.setFeatureState({ source: DOM_SRC, id: activeHexRef.current }, { active: false }); } catch {}
       }
@@ -384,8 +407,12 @@ export default function CellMap() {
       } else if (mode === 'dominance') {
         const newRes = getResolutionForZoom(map.getZoom());
         if (newRes !== lastRenderedRes) {
-          // Hex under the old popup no longer exists in the new source
+          // Hex under the old popup no longer exists in the new source;
+          // same goes for selected hexes — their IDs are resolution-scoped,
+          // so carrying them across a zoom boundary would highlight wrong
+          // geometries or nothing at all.
           setHexPopup(null);
+          setSelectedHexes(new Set());
           activeHexRef.current = null;
           hoveredHexRef.current = null;
           lastRenderedRes = newRes;
@@ -472,6 +499,62 @@ export default function CellMap() {
     }
   }, [hexPopup]);
 
+  // ── Multi-select sync: mirror `selectedHexes` into map feature states ──
+  // MapLibre's paint expressions read per-feature state; React state needs
+  // to drive that. We diff previous vs. current sets and only apply the
+  // delta, which scales cleanly even when a marquee drop adds 80+ hexes
+  // at once (vs. rewriting every feature state each render).
+  const prevSelectedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const src = DOMINANCE_LAYER_IDS.source;
+    if (!map.getSource(src)) {
+      // Source not ready yet (user hasn't entered Dominance mode). Keep
+      // the React state consistent so when the source mounts, the next
+      // render syncs correctly.
+      prevSelectedRef.current = new Set(selectedHexes);
+      return;
+    }
+
+    const prev = prevSelectedRef.current;
+    for (const id of prev) {
+      if (!selectedHexes.has(id)) {
+        try { map.setFeatureState({ source: src, id }, { selected: false }); } catch {}
+      }
+    }
+    for (const id of selectedHexes) {
+      if (!prev.has(id)) {
+        try { map.setFeatureState({ source: src, id }, { selected: true }); } catch {}
+      }
+    }
+    prevSelectedRef.current = new Set(selectedHexes);
+  }, [selectedHexes]);
+
+  // Leaving Dominance view drops the selection — the visual layer won't
+  // render it anyway, and dangling IDs would look stale if the user
+  // returned later after filters changed the hex grid.
+  useEffect(() => {
+    if (domOpts.enabled === false || viewModeRef.current !== 'dominance') {
+      if (selectedHexes.size > 0) setSelectedHexes(new Set());
+    }
+  }, [domOpts, selectedHexes.size]);
+
+  // Escape clears multi-select. Doesn't interfere with the popup's own
+  // Escape handling — the popup closes first (handled in MapOverlayPopup),
+  // then a second Escape clears the selection. Non-intrusive.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Don't steal Escape from the popup — if a popup is open, let it
+      // close first; user can press Escape again to clear selection.
+      if (hexPopup || pinPopup) return;
+      if (selectedHexes.size > 0) setSelectedHexes(new Set());
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [hexPopup, pinPopup, selectedHexes.size]);
+
 
   // Add ERBs from a single hex to cart (honors focus/tech filters). Returns added count.
   const handleAddHexToCart = useCallback((h3Id: string): number => {
@@ -501,6 +584,55 @@ export default function CellMap() {
     });
     return added;
   }, [allErbs]);
+
+
+  // ── Aggregations for HexSelectionBar ─────────────────────────────────
+  // When the user shift-selects hexes, this memo computes the live totals
+  // shown in the floating bar. Resolution is derived from the current zoom
+  // so it tracks the rendered hex grid; changing zoom to a different band
+  // clears the selection upstream (in zoomend), keeping IDs and resolution
+  // in lock-step.
+  const hexSelectionAggregates = useMemo(() => {
+    if (!selectedHexes.size || !allErbs.length) {
+      return { count: 0, erbsCount: 0, devices: 0, erbIds: [] as number[] };
+    }
+    const map = mapRef.current;
+    const resolution = map ? getResolutionForZoom(map.getZoom()) : 4;
+    const erbIds = getErbIdsInHexSet(allErbs, selectedHexes, resolution);
+    if (!erbIds.length) {
+      return { count: selectedHexes.size, erbsCount: 0, devices: 0, erbIds };
+    }
+    const erbById = getErbById(allErbs);
+    let devices = 0;
+    for (const id of erbIds) {
+      const e = erbById.get(id);
+      if (!e) continue;
+      devices += estimateCellAudience(
+        e.tech_principal, e.uf, e.freq_mhz?.[0] ?? 0,
+        { mun: e.municipio, operatorName: e.prestadora_norm }
+      );
+    }
+    return { count: selectedHexes.size, erbsCount: erbIds.length, devices, erbIds };
+  }, [selectedHexes, allErbs, mapZoom]);
+
+  const handleAddSelectedHexesToCart = useCallback(() => {
+    const { erbIds } = hexSelectionAggregates;
+    if (!erbIds.length) return;
+    setCart(prev => {
+      const next = new Set(prev);
+      for (const id of erbIds) next.add(id);
+      return next;
+    });
+    // Clear selection after commit — the user intent ("I want these in my
+    // plan") is fulfilled; the cart is now the source of truth. Leaving
+    // them selected creates ambiguity about whether a subsequent shift+click
+    // is adding-to-staging or modifying-already-committed.
+    setSelectedHexes(new Set());
+  }, [hexSelectionAggregates]);
+
+  const handleClearHexSelection = useCallback(() => {
+    setSelectedHexes(new Set());
+  }, []);
 
 
   // Drill-down to a deeper resolution. Centers map on the hex and zooms in.
@@ -678,6 +810,20 @@ export default function CellMap() {
 
         {/* Legend — hidden in dominance mode (panel has the info) */}
         <CellLegend viewMode={viewMode} opCounts={opCounts} selectionBarHeight={selectionBarHeight} />
+
+        {/* Hex multi-selection bar — only in Dominance view, only when 1+
+            hexes are selected. Sits above the main SelectionBar when the
+            cart is active so both can coexist without stacking. */}
+        {viewMode === 'dominance' && !loading && (
+          <HexSelectionBar
+            count={hexSelectionAggregates.count}
+            erbsCount={hexSelectionAggregates.erbsCount}
+            devicesText={formatAudience(hexSelectionAggregates.devices)}
+            bottomOffset={selectionBarHeight}
+            onAddAll={handleAddSelectedHexesToCart}
+            onClear={handleClearHexSelection}
+          />
+        )}
 
         {/* Loading overlay */}
         {loading && (

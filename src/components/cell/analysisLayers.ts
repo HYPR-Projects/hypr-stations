@@ -345,12 +345,14 @@ export function addDominanceLayer(map: MLMap, opts: DominanceOptions = {}) {
     id: DOM_FILL, type: 'fill', source: DOM_SOURCE,
     paint: {
       'fill-color': ['get', 'color'],
-      // Boost opacity on hover/active via feature-state. Caps tuned for the
-      // new higher base opacity — multipliers are smaller (1.2/1.15) because
-      // starting points are already 2× what they were; keeping the old 1.3/1.6
-      // would just saturate to the cap immediately and kill the boost signal.
+      // Feature-state precedence: selected > active > hovered > base.
+      // Selected hexes get the highest fill-opacity bump so a 5-hex
+      // multi-select reads as a clearly-defined region rather than a
+      // faint outline.
       'fill-opacity': [
         'case',
+        ['boolean', ['feature-state', 'selected'], false],
+          ['min', ['*', ['get', 'opacity'], 1.4], 0.95],
         ['boolean', ['feature-state', 'active'], false],
           ['min', ['*', ['get', 'opacity'], 1.25], 0.95],
         ['boolean', ['feature-state', 'hovered'], false],
@@ -363,15 +365,24 @@ export function addDominanceLayer(map: MLMap, opts: DominanceOptions = {}) {
   map.addLayer({
     id: DOM_LINE, type: 'line', source: DOM_SOURCE,
     paint: {
-      'line-color': ['get', 'color'],
+      // When selected, override the operator color with accent teal — this
+      // differentiates "you clicked me" from "you added me to selection"
+      // and survives against every operator color underneath.
+      'line-color': [
+        'case',
+        ['boolean', ['feature-state', 'selected'], false], '#4db8d4',
+        ['get', 'color'],
+      ],
       'line-width': [
         'case',
+        ['boolean', ['feature-state', 'selected'], false], 3,
         ['boolean', ['feature-state', 'active'], false], 2.2,
         ['boolean', ['feature-state', 'hovered'], false], 1.6,
         0.7,
       ],
       'line-opacity': [
         'case',
+        ['boolean', ['feature-state', 'selected'], false], 1,
         ['boolean', ['feature-state', 'active'], false], 1,
         ['boolean', ['feature-state', 'hovered'], false], 0.75,
         0.4,
@@ -579,4 +590,32 @@ export function getErbIdsInVisibleHexes(
     filtered.push(id);
   }
   return filtered;
+}
+
+/**
+ * Get all ERB IDs whose h3 address (at the given resolution) is in the
+ * provided set of hex IDs. Used for multi-hex selection flows in Dominance
+ * view — given the user-selected hexes, return the aggregated ERBs inside
+ * them so they can be bulk-added to the plan.
+ *
+ * Does NOT apply tech/operator filters: when the user selects hexes in a
+ * filtered Dominance view, they've already constrained the visible set,
+ * so this returns every ERB inside the selected geometries at face value.
+ * If callers need additional filtering they can do it on the returned IDs.
+ */
+export function getErbIdsInHexSet(
+  erbs: ERB[],
+  hexIds: Set<string> | string[],
+  resolution: number
+): number[] {
+  const idSet = hexIds instanceof Set ? hexIds : new Set(hexIds);
+  if (!idSet.size) return [];
+
+  const hexMap = buildHexToErbsMap(erbs, resolution);
+  const out = new Set<number>();
+  for (const h of idSet) {
+    const list = hexMap.get(h);
+    if (list) for (const id of list) out.add(id);
+  }
+  return Array.from(out);
 }
