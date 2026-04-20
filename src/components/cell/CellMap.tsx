@@ -73,6 +73,25 @@ export default function CellMap() {
   // Cleared on Escape, on view-mode change, and when zoom crosses a
   // resolution boundary (hex IDs become stale across resolutions).
   const [selectedHexes, setSelectedHexes] = useState<Set<string>>(() => new Set());
+  // ── Marquee (shift+drag) state lives entirely in refs ──────────────
+  // mousemove fires 60+ times per second during a drag; pushing those
+  // through useState would cause a re-render storm. Instead we keep the
+  // live pixel coords in a ref and mutate the overlay DOM node directly.
+  // React only re-renders when the marquee-induced selection updates
+  // setSelectedHexes, which is once per drag (on mouseup).
+  const marqueeRef = useRef<{ start: [number, number]; end: [number, number] } | null>(null);
+  const marqueeOverlayRef = useRef<HTMLDivElement | null>(null);
+  // True for one tick after a marquee drag ends so the click event that
+  // naturally follows mouseup doesn't get treated as a hex click — mousedown
+  // on a hex → drag → mouseup would otherwise fire click on that hex and
+  // either open a popup or toggle the wrong hex into selection.
+  const suppressNextClickRef = useRef(false);
+  // Ref holding the latest endMarquee closure. Populated inside
+  // onMapReady (where MapLibre instance and paint state are in scope),
+  // called from a useEffect-managed window listener to guarantee the
+  // marquee finishes even when the user releases the mouse outside the
+  // map canvas — without leaking listeners across mount/unmount.
+  const endMarqueeRef = useRef<((commit: boolean) => void) | null>(null);
   // onMapReady registers click handlers only once per map instance. The
   // handler calls openHexPopup via ref so it always invokes the current
   // closure (openHexPopup depends on nothing now, but keeping the ref
@@ -366,6 +385,13 @@ export default function CellMap() {
     });
 
     map.on('click', DOM_FILL, (e) => {
+      // A drag that just ended synthesizes a click on whatever hex the
+      // cursor landed on; ignore that one click so the marquee result
+      // isn't immediately corrupted by a toggle on an adjacent hex.
+      if (suppressNextClickRef.current) {
+        suppressNextClickRef.current = false;
+        return;
+      }
       if (!e.features?.length) return;
       const feat = e.features[0];
       const id = feat.id as string | undefined;
@@ -419,6 +445,111 @@ export default function CellMap() {
         }
         updateDominanceForZoom(map, domOptsRef.current);
       }
+    });
+
+    // ── Marquee selection (shift+drag in Dominance view) ──────────────
+    // MapLibre's boxZoom (shift+drag → zoom to bbox) is a rarely-used
+    // feature that fights for the same gesture. We disable it outright
+    // so shift+drag means "select" in this product, everywhere, forever.
+    map.boxZoom.disable();
+
+    const updateMarqueeOverlay = () => {
+      const el = marqueeOverlayRef.current;
+      const m = marqueeRef.current;
+      if (!el) return;
+      if (!m) {
+        el.style.display = 'none';
+        return;
+      }
+      const [sx, sy] = m.start;
+      const [ex, ey] = m.end;
+      el.style.display = 'block';
+      el.style.left = `${Math.min(sx, ex)}px`;
+      el.style.top = `${Math.min(sy, ey)}px`;
+      el.style.width = `${Math.abs(ex - sx)}px`;
+      el.style.height = `${Math.abs(ey - sy)}px`;
+    };
+
+    const endMarquee = (commit: boolean) => {
+      const m = marqueeRef.current;
+      marqueeRef.current = null;
+      updateMarqueeOverlay(); // hides the box
+
+      // Re-enable pan for the next gesture. boxZoom stays permanently off.
+      map.dragPan.enable();
+
+      if (!commit || !m) return;
+      // Bail if the user switched away from Dominance mid-drag — the
+      // DOM_FILL layer might be gone and queryRenderedFeatures would
+      // return nothing useful anyway.
+      if (viewModeRef.current !== 'dominance') return;
+
+      const [sx, sy] = m.start;
+      const [ex, ey] = m.end;
+      const dx = Math.abs(ex - sx);
+      const dy = Math.abs(ey - sy);
+      // Sub-5px drag = treated as a click. Let the click handler run
+      // unmolested so shift+click-without-moving still toggles a single hex.
+      if (dx < 5 && dy < 5) return;
+
+      // Any drag bigger than that is a marquee — suppress the click that
+      // will follow the mouseup naturally, then query features in the bbox.
+      suppressNextClickRef.current = true;
+      const bbox: [[number, number], [number, number]] = [
+        [Math.min(sx, ex), Math.min(sy, ey)],
+        [Math.max(sx, ex), Math.max(sy, ey)],
+      ];
+      const feats = map.queryRenderedFeatures(bbox, { layers: [DOM_FILL] });
+      if (!feats.length) return;
+
+      const picked = new Set<string>();
+      for (const f of feats) {
+        const id = f.id as string | undefined;
+        if (id) picked.add(id);
+      }
+      if (!picked.size) return;
+
+      // Additive: marquee merges with whatever was already selected.
+      // Matches desktop conventions (Figma/Photoshop) where shift+drag
+      // extends a selection rather than replacing it. To start fresh,
+      // the user hits Escape first — cheap and explicit.
+      setSelectedHexes(prev => {
+        const next = new Set(prev);
+        for (const id of picked) next.add(id);
+        return next;
+      });
+    };
+    // Expose endMarquee so the window-scoped mouseup listener (managed
+    // below in a useEffect) can finish a drag that released outside the
+    // map container.
+    endMarqueeRef.current = endMarquee;
+
+    map.on('mousedown', (e) => {
+      if (viewModeRef.current !== 'dominance') return;
+      if (!e.originalEvent.shiftKey) return;
+      // Ignore re-entry if a drag is somehow already active (defensive
+      // against mouseup events being swallowed by browser focus switches).
+      if (marqueeRef.current) return;
+
+      // Prevent text selection and native drag during the marquee. Also
+      // cancels MapLibre's dragPan for this gesture — re-enabled in endMarquee.
+      e.preventDefault();
+      map.dragPan.disable();
+
+      const pt: [number, number] = [e.point.x, e.point.y];
+      marqueeRef.current = { start: pt, end: pt };
+      updateMarqueeOverlay();
+    });
+
+    map.on('mousemove', (e) => {
+      if (!marqueeRef.current) return;
+      marqueeRef.current.end = [e.point.x, e.point.y];
+      updateMarqueeOverlay();
+    });
+
+    map.on('mouseup', () => {
+      if (!marqueeRef.current) return;
+      endMarquee(true);
     });
 
     // Render layers now
@@ -554,6 +685,16 @@ export default function CellMap() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [hexPopup, pinPopup, selectedHexes.size]);
+
+  // Window-scoped mouseup catches marquee drags that finish outside the
+  // map canvas (cursor exits the bounding box during drag). Calls into
+  // the current endMarquee via ref so the handler stays in scope with
+  // the live map instance. Cleans up on unmount to avoid listener leaks.
+  useEffect(() => {
+    const onUp = () => endMarqueeRef.current?.(true);
+    window.addEventListener('mouseup', onUp);
+    return () => window.removeEventListener('mouseup', onUp);
+  }, []);
 
 
   // Add ERBs from a single hex to cart (honors focus/tech filters). Returns added count.
@@ -824,6 +965,25 @@ export default function CellMap() {
             onClear={handleClearHexSelection}
           />
         )}
+
+        {/* Marquee overlay — a single DOM node manipulated directly by
+            mousemove during shift+drag. Keeping this out of React state
+            avoids 60fps re-renders. display:none by default; shows only
+            while marqueeRef is active. */}
+        <div
+          ref={marqueeOverlayRef}
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            display: 'none',
+            border: '1px solid var(--accent)',
+            background: 'rgba(77, 184, 212, 0.1)',
+            borderRadius: 2,
+            pointerEvents: 'none',
+            zIndex: 30,
+            boxShadow: '0 0 0 0.5px rgba(77, 184, 212, 0.25), 0 0 14px rgba(77, 184, 212, 0.15)',
+          }}
+        />
 
         {/* Loading overlay */}
         {loading && (
