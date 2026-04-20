@@ -169,21 +169,20 @@ export default function DominancePanel({ zoom, onOptionsChange, onAddVisibleToCa
   //  - top: fixed 80px (below ViewModeSelector)
   //  - bottom: selectionBarHeight + 14px (breathing room above the bar,
   //    or 14px alone when the bar is hidden)
-  // Height is driven by the SelectionBar's ResizeObserver in the parent —
-  // no hardcoded pixel assumptions. Flex-column with scrollable body means
-  // the CTA button and any footer (e.g. 'Incluir outras operadoras'
-  // checkbox) remain visible even when filters push content beyond the
-  // viewport.
+  //  - hard cap at 680px so the panel never stretches to fill a tall
+  //    viewport. Past ~680px the focus-mode footer content fits without
+  //    reaching the bottom of the screen, and the internal scroll
+  //    handles the rest gracefully.
   const bottomGap = selectionBarHeight + 14;
 
   return (
     <div
-      className="hidden md:flex absolute top-20 right-3.5 z-10 w-[290px] rounded-[12px] overflow-hidden flex-col"
+      className="hidden md:flex absolute top-20 right-3.5 z-10 w-[320px] rounded-[12px] overflow-hidden flex-col"
       style={{
         background: 'var(--bg-surface)',
         border: '0.5px solid var(--border-hover)',
         boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.08)',
-        maxHeight: `calc(100vh - 80px - ${bottomGap}px)`,
+        maxHeight: `min(680px, calc(100vh - 80px - ${bottomGap}px))`,
       }}
     >
       {/* Toggle header — click to collapse/expand */}
@@ -377,7 +376,7 @@ export default function DominancePanel({ zoom, onOptionsChange, onAddVisibleToCa
                       role="checkbox"
                       aria-checked={active}
                       aria-label={`Filtrar por ${labels[key]}: ${count} regiões`}
-                      className="flex-1 rounded-[10px] py-2.5 text-center cursor-pointer border-0 outline-none
+                      className="flex-1 rounded-[10px] py-2 text-center cursor-pointer border-0 outline-none
                                  transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                       style={{
                         background: active ? cfg.bg : cfg.bgLight,
@@ -386,10 +385,10 @@ export default function DominancePanel({ zoom, onOptionsChange, onAddVisibleToCa
                         boxShadow: active ? `0 0 0 2px ${cfg.color}25` : 'none',
                       }}
                     >
-                      <div className="text-[20px] font-bold leading-none" style={{ color: cfg.color }}>
+                      <div className="text-[18px] font-bold leading-none" style={{ color: cfg.color }}>
                         {count.toLocaleString('pt-BR')}
                       </div>
-                      <div className="text-[10px] font-semibold tracking-[0.05em] uppercase mt-1.5 text-[var(--text-muted)]">
+                      <div className="text-[10px] font-semibold tracking-[0.05em] uppercase mt-1 text-[var(--text-muted)]">
                         {labels[key]}
                       </div>
                     </button>
