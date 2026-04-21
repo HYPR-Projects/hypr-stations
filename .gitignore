@@ -31,3 +31,4 @@ scripts/erb_processed.json
 scripts/batch_*.sql
 scripts/mega_batches/
 .env
+scripts/__pycache__/
